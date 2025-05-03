@@ -16,44 +16,26 @@ from hydra.core.global_hydra import GlobalHydra
 from api.api_index import get_datastore
 
 
-DS_DOMAIN = os.getenv('DS_DOMAIN')
-NUM_SHARDS = int(os.getenv('NUM_SHARDS'))
-NUM_SHARDS_PER_WORKER = int(os.getenv('NUM_SHARDS_PER_WORKER'))
-WORKER_ID = int(os.getenv('WORKER_ID'))
-
-shard_ids = [i for i in range(WORKER_ID*NUM_SHARDS_PER_WORKER, (WORKER_ID+1)*NUM_SHARDS_PER_WORKER)]
-
-
-def load_config():
-    # Ensuring Hydra is not already initialized which can cause issues in notebooks or multiple initializations
-    if GlobalHydra.instance().is_initialized():
-        GlobalHydra.instance().clear()
-
-    # Initialize Hydra and set the path to the config directory
-    hydra.initialize(config_path="conf")
-
-    # Get overrides from environment variables
-    overrides = []
-    for key, value in os.environ.items():
-        if key.startswith('HYDRA_OVERRIDE_'):
-            # Convert HYDRA_OVERRIDE_MODEL__DATASET to model.dataset
-            config_key = key.replace('HYDRA_OVERRIDE_', '').lower().replace('__', '.')
-            overrides.append(f"{config_key}={value}")
-
-    # Compose the configuration with overrides
-    cfg = hydra.compose(config_name="aws_h200", overrides=overrides)
-
-    # Print or use the configuration as needed
-    print(OmegaConf.to_yaml(cfg))
-    return cfg
-
+class DPRWikiDatastore():
+    def __init__(self, ):
+        super().__init__()
+        self.domain_name = 'dpr_wiki_contriever'
+        self.query_encoder = 'facebook/contriever-msmarco'
+        self.query_tokenizer = 'facebook/contriever-msmarco'
+        self.data_root = '/checkpoint/comem/rulin/data/massive_serve'
+        self.index_type = 'IVFFlat'
+        self.per_gpu_batch_size = 128
+        self.question_maxlength = 512
+        self.nprobe = 128
+ds_cfg = DPRWikiDatastore()
+        
 
 app = Flask(__name__)
 CORS(app)
 
 
 class Item:
-    def __init__(self, query=None, query_embed=None, domains="MassiveDS", n_docs=1) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
@@ -76,10 +58,7 @@ class SearchQueue:
         self.queue = queue.Queue()
         self.lock = threading.Lock()
         self.current_search = None
-        self.cfg = load_config()
-        self.cfg.datastore.domain = DS_DOMAIN
-        self.cfg.datastore.embedding.num_shards = NUM_SHARDS
-        self.datastore = get_datastore(self.cfg, shard_ids)
+        self.datastore = get_datastore(ds_cfg)
 
         self.log_queries = log_queries
         self.query_log = 'cached_queries.jsonl'
@@ -172,7 +151,6 @@ def home():
 
 
 def find_free_port():
-    # https://stackoverflow.com/a/36331860
     with socket.socket() as s:
         s.bind(("", 0))  # Bind to a free port provided by the host.
         return s.getsockname()[1]  # Return the port number assigned.
@@ -181,26 +159,15 @@ def find_free_port():
 def main():
     port = find_free_port()
     server_id = socket.gethostname()
-    chunk_id = '-'.join([str(id) for id in shard_ids])
-    domain_name = DS_DOMAIN
-    serve_info = {'server_id': server_id, 'port': port, 'chunk_id': chunk_id}
+    domain_name = ds_cfg.domain_name
+    serve_info = {'server_id': server_id, 'port': port}
     endpoint = f'rulin@{server_id}:{port}/search'  # replace with your username
-    print(f'Running at {endpoint}')
-    with open('running_ports_massiveds.jsonl', 'a+') as fout:
-        info = {
-            'domain_name': f'{domain_name}',
-            'chunk_id': f'{chunk_id}',
-            'endpoint': f'{endpoint}',
-        }
-        fout.write(json.dumps(info)+'\n')
+    print(f'Serving {domain_name} at {endpoint}')
+    print(f'Try sending a test request with:')
+    print(f'curl -X POST {endpoint} -H "Content-Type: application/json" -d \'{{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "{domain_name}"}}\'')
     
     app.run(host='0.0.0.0', port=port)
 
 
 if __name__ == '__main__':
-    main()   
-    
-    """
-    ##### Test #####
-    curl -X POST rulin@cr1-h200-p5en48xlarge-712:33959/search -H "Content-Type: application/json" -d '{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "rpj_c4"}'
-    """
+    main()

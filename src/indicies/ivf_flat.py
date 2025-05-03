@@ -16,15 +16,6 @@ import re
 import faiss
 import numpy as np
 import torch
-from transformers import GPTNeoXTokenizerFast
-
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.slurm
-from contriever.src.evaluation import calculate_matches
-import contriever.src.normalize_text
-
-from src.indicies.index_utils import convert_pkl_to_jsonl, get_passage_pos_ids
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -187,18 +178,10 @@ class IVFFlatIndexer(object):
             pickle.dump(self.index_id_to_db_id, fout)
         logging.info('Adding took {} s'.format(time.time() - start_time))
         return index
-    
-    def build_passage_pos_id_map(self, ):
-        convert_pkl_to_jsonl(self.passage_dir)
-        passage_pos_ids = get_passage_pos_ids(self.passage_dir, self.pos_map_save_path)
-        return passage_pos_ids
 
     def load_psg_pos_id_map(self,):
-        if os.path.exists(self.pos_map_save_path):
-            with open(self.pos_map_save_path, 'rb') as f:
-                psg_pos_id_map = pickle.load(f)
-        else:
-            psg_pos_id_map = self.build_passage_pos_id_map()
+        with open(self.pos_map_save_path, 'rb') as f:
+            psg_pos_id_map = pickle.load(f)
         return psg_pos_id_map
     
     def _id2psg(self, shard_id, chunk_id):

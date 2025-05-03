@@ -5,8 +5,13 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
-        # Add your package dependencies here
+        "click",  # Required for CLI
     ],
+    entry_points={
+        'console_scripts': [
+            'massive-serve=massive_serve.cli:cli',
+        ],
+    },
     author="Rulin Shao",
     author_email="rulins@cs.washington.edu",
     description="A package for massive serving",

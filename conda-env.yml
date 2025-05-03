@@ -1,0 +1,26 @@
+name: massive-serve
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.8
+  - pip
+  - faiss-gpu=1.11.0
+  - pytorch>=1.9.0
+  - pip:
+    - setuptools>=42
+    - wheel>=0.37.0
+    - pytest>=7.0.0
+    - black>=22.0.0
+    - flake8>=4.0.0
+    - flask>=2.0.0
+    - flask-cors>=3.0.0
+    - requests>=2.25.0
+    - hydra-core>=1.3.0
+    - omegaconf>=2.3.0
+    - transformers>=4.30.0
+    - sentence-transformers>=2.2.0
+    - numpy>=1.21.0
+    - tqdm>=4.65.0 

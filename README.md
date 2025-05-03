@@ -1,42 +1,54 @@
 # Massive Serve
 
-A Python package for massive serving.
+A scalable search and retrieval system using FAISS indices.
 
-## Installation
+## Environment Setup
 
-You can install the package using pip:
+### Using Conda (Recommended for GPU support)
 
+1. Create a new conda environment:
 ```bash
-pip install massive-serve
+conda env create -f conda-env.yml
+conda activate massive-serve
+```
+To update the existing environment:
+```bash
+conda env update -n massive-serve -f conda-env.yml
 ```
 
-## Development
 
-To set up the development environment:
+Note: The pip installation will automatically choose the appropriate FAISS version (CPU or GPU) based on your system.
 
-1. Clone the repository:
-```bash
-git clone https://github.com/RulinShao/massive-serve.git
-cd massive-serve
-```
+## Project Structure
 
-2. Install development dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Install the package in development mode:
-```bash
-pip install -e .
-```
+- `src/indicies/`: Contains different index implementations
+  - `ivf_flat.py`: IVF-Flat index implementation
+  - `base.py`: Base indexer class
+  - Other index implementations
 
 ## Usage
 
-```python
-import massive_serve
+The system supports multiple types of indices:
+- Flat index
+- IVF-Flat index
+- IVF-PQ index
 
-# Add usage examples here
+Example usage:
+```python
+from src.indicies.base import Indexer
+
+# Initialize the indexer with your configuration
+indexer = Indexer(cfg)
+
+# Search for similar passages
+scores, passages, db_ids = indexer.search(query_embeddings, k=5)
 ```
+
+## Requirements
+
+- Python 3.8+
+- CUDA support (optional, for GPU acceleration)
+- See requirements.txt for full list of dependencies
 
 ## License
 
