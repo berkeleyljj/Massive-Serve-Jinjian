@@ -4,9 +4,9 @@ import logging
 import numpy as np
 import torch
 
-# from src.indicies.flat import FlatIndexer
-from src.indicies.ivf_flat import IVFFlatIndexer
-# from src.indicies.ivf_pq import IVFPQIndexer
+# from .flat import FlatIndexer
+from .ivf_flat import IVFFlatIndexer
+# from .ivf_pq import IVFPQIndexer
 
 
 class Indexer(object):

@@ -8,7 +8,7 @@ import pdb
 
 import numpy as np
 import transformers
-from src.indicies.index_utils import get_passage_pos_ids
+from massive_serve.src.indicies.index_utils import get_passage_pos_ids
 
 
 ############################## Training ##############################

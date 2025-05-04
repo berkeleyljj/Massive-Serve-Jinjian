@@ -2,15 +2,15 @@ import os
 import time
 import json
 from omegaconf.omegaconf import OmegaConf
-import contriever.src.contriever
+import massive_serve.contriever.src.contriever as contriever
 from transformers import AutoTokenizer, AutoModel
 import hydra
 import pickle
 import json
 import torch
 
-from src.search import embed_queries
-from src.indicies.base import Indexer
+from massive_serve.src.search import embed_queries
+from massive_serve.src.indicies.base import Indexer
 
 
 device = 'cuda' if torch.cuda.is_available()  else 'cpu'
@@ -24,7 +24,7 @@ class DatastoreAPI():
         model_name_or_path = cfg.query_encoder
         tokenizer_name_or_path = cfg.query_tokenizer
         if "contriever" in model_name_or_path:
-            query_encoder, query_tokenizer, _ = contriever.src.contriever.load_retriever(model_name_or_path)
+            query_encoder, query_tokenizer, _ = contriever.load_retriever(model_name_or_path)
         elif "dragon" in model_name_or_path or "drama" in model_name_or_path or "ReasonIR" in model_name_or_path:
             query_encoder = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
         elif "sentence-transformers" in model_name_or_path:
