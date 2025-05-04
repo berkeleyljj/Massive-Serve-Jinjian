@@ -9,12 +9,12 @@ pip install massive-serve
 
 ## Usage
 
-To serve a demo datastore (30MB needed):
+To serve a demo datastore (30MB):
 ```bash
 massive-serve serve --domain_name demo
 ```
 
-To serve a wikipedia datastore (60MB needed):
+To serve a wikipedia datastore (60GB):
 ```bash
 massive-serve serve --domain_name dpr_wiki_contriever
 ```
