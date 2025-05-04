@@ -1,9 +1,20 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.5",
-    packages=find_packages(),
+    version="0.1.6",
+    packages=find_namespace_packages(include=['massive_serve*']),
+    package_data={
+        'massive_serve': [
+            'api/**/*',
+            'src/**/*',
+            'contriever/**/*',
+            'utils/**/*',
+            'contriever/src/**/*',
+        ],
+    },
+    include_package_data=True,
+    zip_safe=False,
     install_requires=[
         "click",  # Required for CLI
         "faiss-cpu",  # or faiss-gpu if you're using GPU
