@@ -13,7 +13,7 @@ import hydra
 from omegaconf import OmegaConf
 from hydra.core.global_hydra import GlobalHydra
 
-from api.api_index import get_datastore
+from massive_serve.api.api_index import get_datastore
 
 # ANSI color codes
 CYAN = '\033[36m'

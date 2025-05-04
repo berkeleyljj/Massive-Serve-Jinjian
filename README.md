@@ -23,9 +23,25 @@ pip install massive-serve
 ## Usage
 
 ### Serve index
-To serve a wikipedia datastore:
+To serve a demo datastore:
 ```bash
-massive-serve dpr-wiki
+massive-serve serve --domain_name demo
+```
+It will then download and serve the index and print the API and one example request in the terminal, e.g.,
+```markdown
+╔════════════════════════════════════════════════════════════╗
+║                    MASSIVE SERVE SERVER                    ║
+╠════════════════════════════════════════════════════════════╣
+║ Domain: demo                                               ║
+║ Server: XXX                                                ║
+║ Port:   XXX                                                ║
+║ Endpoint: XXX@XXX:XXX/search                               ║
+╚════════════════════════════════════════════════════════════╝
+
+
+Test your server with this curl command:
+
+curl -X POST XXX@XXX:XXX/search -H "Content-Type: application/json" -d '{"query": "Tell me more about the stories of Einstein.", "n_docs": 1, "domains": "demo"}'
 ```
 
 ### Send Requests
