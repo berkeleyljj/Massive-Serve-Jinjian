@@ -3,6 +3,7 @@ import sys
 import subprocess
 import click
 from .data_utils import prepare_for_upload, prepare_after_download
+from .api.serve_dpr_wiki import main as serve_dpr_wiki_main
 
 @click.group()
 def cli():
@@ -31,12 +32,8 @@ def upload_data(chunk_size_gb):
 @cli.command()
 def dpr_wiki():
     """Run the DPR wiki worker node"""
-    # Set PYTHONPATH to include the massive-serve directory
-    env = os.environ.copy()
-    massive_serve_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env['PYTHONPATH'] = massive_serve_dir
-    
     # Set datastore path to `~` if it is not already set
+    env = os.environ.copy()
     if 'DATASTORE_PATH' not in env:
         env['DATASTORE_PATH'] = '~'
     
@@ -54,9 +51,8 @@ def dpr_wiki():
         raise FileNotFoundError(f"Index file not found at {index_path} after combining split files")
     
     print("Starting DPR wiki server...")
-    # Run the worker node script using absolute path
-    api_script = os.path.join(massive_serve_dir, 'api', 'serve_dpr_wiki.py')
-    subprocess.run(['python', api_script], env=env)
+    # Run the worker node script
+    serve_dpr_wiki_main()
 
 if __name__ == '__main__':
     cli() 

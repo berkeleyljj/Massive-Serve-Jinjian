@@ -124,6 +124,19 @@ Test serving the index:
 python cli.py dpr-wiki
 ```
 
+## Update package
+Make sure the version in the `setup.py` has been updated to a different version. Then run:
+```bash
+rm -rf dist/ build/ massive_serve.egg-info/
+pip install build twine
+python -m build
+python -m twine upload dist/*
+```
+Users can refresh their installed repo via:
+```bash
+pip install --upgrade massive-serve
+```
+
 
 ## Project Structure
 

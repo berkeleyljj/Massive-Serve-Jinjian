@@ -2,13 +2,21 @@ from setuptools import setup, find_packages
 
 setup(
     name="massive_serve",
-    version="0.1.0",
+    version="0.1.1",
     packages=find_packages(),
     install_requires=[
         "click",  # Required for CLI
         "faiss-cpu",  # or faiss-gpu if you're using GPU
         "tqdm",
         "huggingface_hub",
+        "flask",
+        "flask-cors",
+        "hydra-core",
+        "omegaconf",
+        "torch",
+        "transformers",
+        "sentence-transformers",
+        "numpy",
     ],
     entry_points={
         'console_scripts': [
