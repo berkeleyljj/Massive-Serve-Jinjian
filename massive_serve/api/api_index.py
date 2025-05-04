@@ -1,12 +1,8 @@
 import os
 import time
 import json
-from omegaconf.omegaconf import OmegaConf
 from massive_serve.contriever import Contriever, load_retriever
-from transformers import AutoTokenizer, AutoModel
-import hydra
-import pickle
-import json
+from transformers import AutoModel
 import torch
 
 from massive_serve.src.search import embed_queries

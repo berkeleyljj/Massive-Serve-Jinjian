@@ -3,8 +3,7 @@ import json
 import shutil
 import faiss
 from tqdm import tqdm
-import subprocess
-from pathlib import Path
+
 
 def get_file_size_gb(file_path):
     """Get file size in GB"""

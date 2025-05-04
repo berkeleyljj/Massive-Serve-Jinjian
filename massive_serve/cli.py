@@ -39,7 +39,8 @@ def serve(domain_name):
     # Set datastore path to `~` if it is not already set
     env = os.environ.copy()
     if 'DATASTORE_PATH' not in env:
-        env['DATASTORE_PATH'] = '~'
+        datastore_path = input("Please enter a path to save the downloaded index (default: ~): ").strip()
+        env['DATASTORE_PATH'] = datastore_path if datastore_path else '~'
     
     # Add package root to PYTHONPATH
     package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,7 +60,7 @@ def serve(domain_name):
     if not os.path.exists(index_path):
         raise FileNotFoundError(f"Index file not found at {index_path} after combining split files")
     
-    print("Starting DPR wiki server...")
+    print(f"Starting {domain_name} server...")
     # Run the worker node script
     from .api.serve import main as serve_main
     serve_main()

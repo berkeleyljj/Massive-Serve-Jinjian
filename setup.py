@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.7",
+    version="0.1.8",
     packages=find_namespace_packages(include=['massive_serve*']),
     package_data={
         'massive_serve': [
@@ -19,16 +19,15 @@ setup(
         "click",  # Required for CLI
         "faiss-cpu",  # or faiss-gpu if you're using GPU
         "tqdm",
-        "huggingface_hub",
         "flask",
         "flask-cors",
-        "hydra-core",
-        "omegaconf",
         "torch",
         "transformers",
-        "sentence-transformers",
         "numpy",
     ],
+    extras_require={
+        'st': ['sentence-transformers'],
+    },
     entry_points={
         'console_scripts': [
             'massive-serve=massive_serve.cli:cli',

@@ -6,8 +6,6 @@ import gzip
 import logging
 import pdb
 
-import numpy as np
-import transformers
 from massive_serve.src.indicies.index_utils import get_passage_pos_ids
 
 

@@ -2,16 +2,12 @@ import os
 import json
 import traceback
 import datetime
-import hydra
 import socket
+import getpass
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import threading
 import queue
-import time
-import hydra
-from omegaconf import OmegaConf
-from hydra.core.global_hydra import GlobalHydra
 
 from massive_serve.api.api_index import get_datastore
 
@@ -28,7 +24,7 @@ class DPRWikiDatastore():
         self.domain_name = 'dpr_wiki_contriever'
         self.query_encoder = 'facebook/contriever-msmarco'
         self.query_tokenizer = 'facebook/contriever-msmarco'
-        self.data_root = os.environ.get('MASSIVE_SERVE_DATASTORE_PATH', '~')
+        self.data_root = os.environ.get('DATASTORE_PATH', '~')
         self.index_type = 'IVFFlat'
         self.per_gpu_batch_size = 128
         self.question_maxlength = 512
@@ -40,7 +36,7 @@ class DemoDatastore():
         self.domain_name = 'demo'
         self.query_encoder = 'facebook/contriever-msmarco'
         self.query_tokenizer = 'facebook/contriever-msmarco'
-        self.data_root = os.environ.get('MASSIVE_SERVE_DATASTORE_PATH', '~')
+        self.data_root = os.environ.get('DATASTORE_PATH', '~')
         self.index_type = 'IVFFlat'
         self.per_gpu_batch_size = 128
         self.question_maxlength = 512
@@ -188,7 +184,8 @@ def main():
     server_id = socket.gethostname()
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}
-    endpoint = f'rulin@{server_id}:{port}/search'  # replace with your username
+    username = os.environ.get('USER') or os.environ.get('USERNAME') or getpass.getuser()
+    endpoint = f'{username}@{server_id}:{port}/search'  # use actual username
     
     # Create a beautiful banner
     banner = f"""
