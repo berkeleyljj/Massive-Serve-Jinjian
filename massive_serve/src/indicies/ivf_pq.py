@@ -7,22 +7,11 @@ import time
 import glob
 from tqdm import tqdm
 import pdb
-from typing import List, Tuple, Any
-from abc import ABC, abstractmethod
-from omegaconf import ListConfig
-import subprocess
 import re
 
 import faiss
 import numpy as np
 import torch
-from transformers import GPTNeoXTokenizerFast
-
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.slurm
-from contriever.src.evaluation import calculate_matches
-import contriever.src.normalize_text
 
 from src.indicies.index_utils import convert_pkl_to_jsonl, get_passage_pos_ids
 
