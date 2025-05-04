@@ -1,11 +1,14 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="massive-serve",
+    name="massive_serve",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
         "click",  # Required for CLI
+        "faiss-cpu",  # or faiss-gpu if you're using GPU
+        "tqdm",
+        "huggingface_hub",
     ],
     entry_points={
         'console_scripts': [
