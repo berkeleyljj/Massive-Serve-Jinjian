@@ -3,7 +3,6 @@ import sys
 import subprocess
 import click
 from .data_utils import prepare_for_upload, prepare_after_download
-from .api.serve import main as serve_main
 
 @click.group()
 def cli():
@@ -62,6 +61,7 @@ def serve(domain_name):
     
     print("Starting DPR wiki server...")
     # Run the worker node script
+    from .api.serve import main as serve_main
     serve_main()
 
 if __name__ == '__main__':

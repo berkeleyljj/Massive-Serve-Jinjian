@@ -15,7 +15,7 @@ class Indexer(object):
         self.cfg = cfg
         self.index_type = cfg.index_type
         
-        data_root = self.cfg.data_root
+        data_root = os.path.expanduser(self.cfg.data_root)
         
         index_dir = os.path.join(data_root, cfg.domain_name, 'index')
         index_files = [f for f in os.listdir(index_dir) if f.endswith('.faiss')]

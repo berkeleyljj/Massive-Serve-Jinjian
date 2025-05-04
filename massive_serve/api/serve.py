@@ -28,7 +28,7 @@ class DPRWikiDatastore():
         self.domain_name = 'dpr_wiki_contriever'
         self.query_encoder = 'facebook/contriever-msmarco'
         self.query_tokenizer = 'facebook/contriever-msmarco'
-        self.data_root = '/checkpoint/comem/rulin/data/massive_serve'
+        self.data_root = os.environ.get('MASSIVE_SERVE_DATASTORE_PATH', '~')
         self.index_type = 'IVFFlat'
         self.per_gpu_batch_size = 128
         self.question_maxlength = 512
@@ -40,7 +40,7 @@ class DemoDatastore():
         self.domain_name = 'demo'
         self.query_encoder = 'facebook/contriever-msmarco'
         self.query_tokenizer = 'facebook/contriever-msmarco'
-        self.data_root = '/checkpoint/comem/rulin/data/massive_serve'
+        self.data_root = os.environ.get('MASSIVE_SERVE_DATASTORE_PATH', '~')
         self.index_type = 'IVFFlat'
         self.per_gpu_batch_size = 128
         self.question_maxlength = 512
