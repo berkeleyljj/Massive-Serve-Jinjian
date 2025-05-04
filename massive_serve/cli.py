@@ -42,6 +42,11 @@ def serve(domain_name):
     if 'DATASTORE_PATH' not in env:
         env['DATASTORE_PATH'] = '~'
     
+    # Add package root to PYTHONPATH
+    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if package_root not in sys.path:
+        sys.path.insert(0, package_root)
+    
     # Download the wiki index dataset
     save_path = os.path.join(os.path.expanduser(env['DATASTORE_PATH']), domain_name)
     subprocess.run(['huggingface-cli', 'download', f'rulins/massive_serve_{domain_name}', '--repo-type', 'dataset', '--local-dir', save_path])
