@@ -128,12 +128,12 @@ conda env update -n massive-serve -f conda-env.yml
 ## Upload new index
 
 ```bash
-python cli.py upload-data
+python -m massive_serve.cli upload_data --domain_name demo
 ```
 
 Test serving the index:
 ```bash
-python cli.py dpr-wiki
+python -m massive_serve.cli serve --domain_name demo
 ```
 
 ## Update package

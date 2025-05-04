@@ -15,6 +15,12 @@ from hydra.core.global_hydra import GlobalHydra
 
 from api.api_index import get_datastore
 
+# ANSI color codes
+CYAN = '\033[36m'
+GREEN = '\033[32m'
+YELLOW = '\033[33m'
+WHITE = '\033[37m'
+RESET = '\033[0m'
 
 class DPRWikiDatastore():
     def __init__(self, ):
@@ -27,7 +33,28 @@ class DPRWikiDatastore():
         self.per_gpu_batch_size = 128
         self.question_maxlength = 512
         self.nprobe = 128
-ds_cfg = DPRWikiDatastore()
+
+class DemoDatastore():
+    def __init__(self, ):
+        super().__init__()
+        self.domain_name = 'demo'
+        self.query_encoder = 'facebook/contriever-msmarco'
+        self.query_tokenizer = 'facebook/contriever-msmarco'
+        self.data_root = '/checkpoint/comem/rulin/data/massive_serve'
+        self.index_type = 'IVFFlat'
+        self.per_gpu_batch_size = 128
+        self.question_maxlength = 512
+        self.nprobe = 128
+        
+
+datastore_cfg_map = {
+    'dpr_wiki_contriever': DPRWikiDatastore(),
+    'demo': DemoDatastore(),
+}
+
+
+datastore_domain_name = os.environ.get('MASSIVE_SERVE_DOMAIN_NAME', 'demo')
+ds_cfg = datastore_cfg_map[datastore_domain_name]
         
 
 app = Flask(__name__)
@@ -162,9 +189,26 @@ def main():
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}
     endpoint = f'rulin@{server_id}:{port}/search'  # replace with your username
-    print(f'Serving {domain_name} at {endpoint}')
-    print(f'Try sending a test request with:')
-    print(f'curl -X POST {endpoint} -H "Content-Type: application/json" -d \'{{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "{domain_name}"}}\'')
+    
+    # Create a beautiful banner
+    banner = f"""
+{CYAN}╔════════════════════════════════════════════════════════════╗
+║{GREEN}                    MASSIVE SERVE SERVER                    {CYAN}║
+╠════════════════════════════════════════════════════════════╣
+║{YELLOW} Domain: {WHITE}{domain_name:<45}{CYAN}║
+║{YELLOW} Server: {WHITE}{server_id:<45}{CYAN}║
+║{YELLOW} Port:   {WHITE}{port:<45}{CYAN}║
+║{YELLOW} Endpoint: {WHITE}{endpoint:<41}{CYAN}║
+╚════════════════════════════════════════════════════════════╝{RESET}
+"""
+    print(banner)
+    
+    # Print test request with colors
+    test_request = f"""
+{GREEN}Test your server with this curl command:\n{RESET}
+{CYAN}curl -X POST {endpoint} -H "Content-Type: application/json" -d '{YELLOW}{{"query": "Tell me more about the stories of Einstein.", "n_docs": 1, "domains": "{domain_name}"}}{CYAN}'{RESET}
+"""
+    print(test_request)
     
     app.run(host='0.0.0.0', port=port)
 

@@ -186,7 +186,9 @@ class IVFFlatIndexer(object):
     
     def _id2psg(self, shard_id, chunk_id):
         filename, position = self.psg_pos_id_map[shard_id][chunk_id]
-        with open(filename, 'r') as file:
+        filename = filename.split('/')[-1]
+        file_path = os.path.join(self.passage_dir, filename)
+        with open(file_path, 'r') as file:
             file.seek(position)
             line = file.readline()
         return json.loads(line)
