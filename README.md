@@ -1,6 +1,6 @@
 # Massive Serve User Guide
 
-A scalable search and retrieval system using FAISS indices.
+One command to download and serve a datastore---that's it 😎.
 
 ## Installation
 ```bash
@@ -9,15 +9,17 @@ pip install massive-serve
 
 ## Usage
 
-To serve a demo datastore:
+To serve a demo datastore (30MB):
 ```bash
 massive-serve serve --domain_name demo
 ```
 
-To serve a wikipedia datastore:
+To serve a wikipedia datastore (60GB):
 ```bash
 massive-serve serve --domain_name dpr_wiki_contriever
 ```
+
+More domains and retriever combinations coming soon!
 
 It will then download and serve the index and print the API and one example request in the terminal, e.g.,
 ```markdown
@@ -43,10 +45,28 @@ If the API has been served, you can either send single or bulk query requests to
 
 ```bash
 # single-query request
-curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "MassiveDS"}'
+curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "dpr_wiki_contriever"}'
 
 # multi-query request
-curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": ["Where was Marie Curie born?", "What is the capital of France?", "Who invented the telephone?"], "n_docs": 2, "domains": "MassiveDS"}'
+curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": ["Where was Marie Curie born?", "What is the capital of France?", "Who invented the telephone?"], "n_docs": 2, "dpr_wiki_contriever": "MassiveDS"}'
+```
+
+**Python Example.**
+```python
+import requests
+
+json_data = {
+    'query': 'Where was Marie Curie born?',
+    "n_docs": 20,
+    "domains": "dpr_wiki_contriever"
+}
+headers = {"Content-Type": "application/json"}
+
+# Add 'http://' to the URL if it is not SSL/TLS secured, otherwise use 'https://'
+response = requests.post('http://<user>@<address>:<port>/search', json=json_data, headers=headers)
+
+print(response.status_code)
+print(response.json())
 ```
 
 Example output of a multi-query request:
