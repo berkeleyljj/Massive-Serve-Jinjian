@@ -7,10 +7,6 @@ import time
 import glob
 from tqdm import tqdm
 import pdb
-from typing import List, Tuple, Any
-from abc import ABC, abstractmethod
-from omegaconf import ListConfig
-import subprocess
 import re
 
 import faiss

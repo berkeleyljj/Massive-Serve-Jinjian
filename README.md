@@ -2,31 +2,23 @@
 
 A scalable search and retrieval system using FAISS indices.
 
-If you find our package helpful, please cite:
-```
-@article{shao2024scaling,
-  title={Scaling retrieval-based language models with a trillion-token datastore},
-  author={Shao, Rulin and He, Jacqueline and Asai, Akari and Shi, Weijia and Dettmers, Tim and Min, Sewon and Zettlemoyer, Luke and Koh, Pang Wei W},
-  journal={Advances in Neural Information Processing Systems},
-  volume={37},
-  pages={91260--91299},
-  year={2024}
-}
-```
-
 ## Installation
-Installation
 ```bash
 pip install massive-serve
 ```
 
 ## Usage
 
-### Serve index
 To serve a demo datastore:
 ```bash
 massive-serve serve --domain_name demo
 ```
+
+To serve a wikipedia datastore:
+```bash
+massive-serve serve --domain_name dpr_wiki_contriever
+```
+
 It will then download and serve the index and print the API and one example request in the terminal, e.g.,
 ```markdown
 ╔════════════════════════════════════════════════════════════╗
@@ -166,37 +158,20 @@ pip install --upgrade massive-serve
 ```
 
 
-## Project Structure
-
-- `src/indicies/`: Contains different index implementations
-  - `ivf_flat.py`: IVF-Flat index implementation
-  - `base.py`: Base indexer class
-  - Other index implementations
-
-## Usage
-
-The system supports multiple types of indices:
-- Flat index
-- IVF-Flat index
-- IVF-PQ index
-
-Example usage:
-```python
-from src.indicies.base import Indexer
-
-# Initialize the indexer with your configuration
-indexer = Indexer(cfg)
-
-# Search for similar passages
-scores, passages, db_ids = indexer.search(query_embeddings, k=5)
-```
-
-## Requirements
-
-- Python 3.8+
-- CUDA support (optional, for GPU acceleration)
-- See requirements.txt for full list of dependencies
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+
+# Citation
+If you find our package helpful, please cite:
+```
+@article{shao2024scaling,
+  title={Scaling retrieval-based language models with a trillion-token datastore},
+  author={Shao, Rulin and He, Jacqueline and Asai, Akari and Shi, Weijia and Dettmers, Tim and Min, Sewon and Zettlemoyer, Luke and Koh, Pang Wei W},
+  journal={Advances in Neural Information Processing Systems},
+  volume={37},
+  pages={91260--91299},
+  year={2024}
+}
+```
