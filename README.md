@@ -19,6 +19,8 @@ To serve a wikipedia datastore (60GB):
 massive-serve serve --domain_name dpr_wiki_contriever
 ```
 
+To avoid manually specifying the data storage location, set the `DATASTORE_PATH` environment variable to your desired data directory.
+
 List of currently supported datastores (check the latest update in [massive-serve collection](https://huggingface.co/collections/rulins/massive-serve-681a3d499212ccfcd07ebc16)):
 * dpr_wiki_contriever
 * dpr_wiki_e5_base_v2
