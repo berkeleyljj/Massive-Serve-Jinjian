@@ -22,7 +22,7 @@ device = 'cuda' if torch.cuda.is_available()  else 'cpu'
 
 
 def embed_queries(cfg, queries, model, tokenizer, model_name_or_path):
-    if "sentence-transformers" in model_name_or_path:
+    if "sentence-transformers" in model_name_or_path or "e5" in model_name_or_path:
         all_question = []
         for k, q in enumerate(queries):
             all_question.append(q)

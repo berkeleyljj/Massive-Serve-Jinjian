@@ -18,39 +18,22 @@ YELLOW = '\033[33m'
 WHITE = '\033[37m'
 RESET = '\033[0m'
 
-class DPRWikiDatastore():
-    def __init__(self, ):
+
+class DatastoreConfig():
+    def __init__(self,):
         super().__init__()
-        self.domain_name = 'dpr_wiki_contriever'
-        self.query_encoder = 'facebook/contriever-msmarco'
-        self.query_tokenizer = 'facebook/contriever-msmarco'
         self.data_root = os.environ.get('DATASTORE_PATH', '~')
-        self.index_type = 'IVFFlat'
-        self.per_gpu_batch_size = 128
-        self.question_maxlength = 512
-        self.nprobe = 128
+        self.domain_name = os.environ.get('MASSIVE_SERVE_DOMAIN_NAME', 'demo')
+        self.config = json.load(open(os.path.join(self.data_root, self.domain_name, 'config.json')))
+        assert self.config['domain_name'] == self.domain_name, f"Domain name in config.json ({self.config['domain_name']}) does not match the domain name in the environment variable ({self.domain_name})"
+        self.query_encoder = self.config['query_encoder']
+        self.query_tokenizer = self.config['query_tokenizer']
+        self.index_type = self.config['index_type']
+        self.per_gpu_batch_size = self.config['per_gpu_batch_size']
+        self.question_maxlength = self.config['question_maxlength']
+        self.nprobe = self.config['nprobe']
 
-class DemoDatastore():
-    def __init__(self, ):
-        super().__init__()
-        self.domain_name = 'demo'
-        self.query_encoder = 'facebook/contriever-msmarco'
-        self.query_tokenizer = 'facebook/contriever-msmarco'
-        self.data_root = os.environ.get('DATASTORE_PATH', '~')
-        self.index_type = 'IVFFlat'
-        self.per_gpu_batch_size = 128
-        self.question_maxlength = 512
-        self.nprobe = 128
-        
-
-datastore_cfg_map = {
-    'dpr_wiki_contriever': DPRWikiDatastore(),
-    'demo': DemoDatastore(),
-}
-
-
-datastore_domain_name = os.environ.get('MASSIVE_SERVE_DOMAIN_NAME', 'demo')
-ds_cfg = datastore_cfg_map[datastore_domain_name]
+ds_cfg = DatastoreConfig()
         
 
 app = Flask(__name__)

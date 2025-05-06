@@ -23,7 +23,12 @@ class DatastoreAPI():
             query_encoder, query_tokenizer, _ = load_retriever(model_name_or_path)
         elif "dragon" in model_name_or_path or "drama" in model_name_or_path or "ReasonIR" in model_name_or_path:
             query_encoder = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
-        elif "sentence-transformers" in model_name_or_path:
+        elif "sentence-transformers" in model_name_or_path or "e5" in model_name_or_path:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except:
+                print(f"{model_name_or_path} requires sentence-transformers. Please install it with `pip install sentence-transformers`.")
+                raise AttributeError
             query_tokenizer = None
             query_encoder = SentenceTransformer(model_name_or_path)
         elif "GRIT" in model_name_or_path:

@@ -156,7 +156,7 @@ conda env update -n massive-serve -f conda-env.yml
 ## Upload new index
 
 ```bash
-python -m massive_serve.cli upload_data --domain_name demo
+python -m massive_serve.cli upload-data --domain_name demo
 ```
 
 Test serving the index:
