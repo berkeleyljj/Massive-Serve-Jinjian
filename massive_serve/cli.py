@@ -17,7 +17,7 @@ def upload_data(chunk_size_gb, domain_name):
     # Set datastore path to `~` if it is not already set
     env = os.environ.copy()
     if 'DATASTORE_PATH' not in env:
-        env['DATASTORE_PATH'] = '~'
+        env['DATASTORE_PATH'] = os.path.expanduser('~')
     
     data_dir = os.path.join(os.path.expanduser(env['DATASTORE_PATH']), domain_name)
     
@@ -39,8 +39,8 @@ def serve(domain_name):
     # Set datastore path to `~` if it is not already set
     env = os.environ.copy()
     if 'DATASTORE_PATH' not in env:
-        datastore_path = input("Please enter a path to save the downloaded index (default: ~): ").strip()
-        env['DATASTORE_PATH'] = datastore_path if datastore_path else '~'
+        datastore_path = input(f"Please enter a path to save the downloaded index (default: {os.path.expanduser('~')}): ").strip()
+        env['DATASTORE_PATH'] = datastore_path if datastore_path else os.path.expanduser('~')
     
     # Add package root to PYTHONPATH
     package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

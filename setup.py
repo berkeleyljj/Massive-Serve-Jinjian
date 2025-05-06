@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.11",
+    version="0.1.12",
     packages=find_namespace_packages(include=['massive_serve*']),
     package_data={
         'massive_serve': [
@@ -24,6 +24,7 @@ setup(
         "torch",
         "transformers",
         "numpy",
+        "sentence-transformers",
     ],
     extras_require={
         'st': ['sentence-transformers'],

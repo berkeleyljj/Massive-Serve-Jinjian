@@ -22,7 +22,7 @@ RESET = '\033[0m'
 class DatastoreConfig():
     def __init__(self,):
         super().__init__()
-        self.data_root = os.environ.get('DATASTORE_PATH', '~')
+        self.data_root = os.environ.get('DATASTORE_PATH', os.path.expanduser('~'))
         self.domain_name = os.environ.get('MASSIVE_SERVE_DOMAIN_NAME', 'demo')
         self.config = json.load(open(os.path.join(self.data_root, self.domain_name, 'config.json')))
         assert self.config['domain_name'] == self.domain_name, f"Domain name in config.json ({self.config['domain_name']}) does not match the domain name in the environment variable ({self.domain_name})"
