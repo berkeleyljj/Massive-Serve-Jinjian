@@ -56,7 +56,11 @@ def serve(domain_name):
     prepare_after_download(save_path)
     
     # Verify that the index file exists
-    index_path = os.path.join(save_path, 'index', 'index_IVFFlat.100000.768.2048.faiss')
+    index_dir = os.path.join(save_path, 'index')
+    index_files = [f for f in os.listdir(index_dir) if f.endswith('.faiss')]
+    if len(index_files) != 1:
+        raise FileNotFoundError(f"Expected exactly one .faiss file in {index_dir}, found {len(index_files)}")
+    index_path = os.path.join(index_dir, index_files[0])
     if not os.path.exists(index_path):
         raise FileNotFoundError(f"Index file not found at {index_path} after combining split files")
     

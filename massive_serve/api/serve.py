@@ -41,11 +41,12 @@ CORS(app)
 
 
 class Item:
-    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
         self.n_docs = n_docs
+        self.nprobe = nprobe
         self.searched_results = None
     
     def get_dict(self,):
@@ -54,6 +55,7 @@ class Item:
             'query_embed': self.query_embed,
             'domains': self.domains,
             'n_docs': self.n_docs,
+            'nprobe': self.nprobe,
             'searched_results': self.searched_results,
         }
         return dict_item
@@ -73,11 +75,8 @@ class SearchQueue:
         with self.lock:
             if self.current_search is None:
                 self.current_search = item
-                if self.log_queries:
-                    now = datetime.datetime.now()
-                    formatted_time = now.strftime('%Y-%m-%d %H:%M:%S')
-                    with open(self.query_log, 'a+') as fin:
-                        fin.write(json.dumps({'time': formatted_time, 'query': item.query})+'\n')
+                if item.nprobe is not None:
+                    self.datastore.index.nprobe = item.nprobe
                 results = self.datastore.search(item.query, item.n_docs)
                 self.current_search = None
                 return results
@@ -105,8 +104,9 @@ def search():
     try:
         item = Item(
             query=request.json['query'],
-            domains=request.json['domains'],
-            n_docs=request.json['n_docs'],
+            n_docs=request.json.get('n_docs', 1),
+            nprobe=request.json.get('nprobe', None),
+            domains=ds_cfg.domain_name,
         )
         # Perform the search synchronously with 60s timeout
         timer = threading.Timer(60.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 60 seconds')))
@@ -119,6 +119,7 @@ def search():
                 "message": f"Search completed for '{item.query}' from {item.domains}",
                 "query": item.query,
                 "n_docs": item.n_docs,
+                "nprobe": item.nprobe,
                 "results": results,
             }), 200
         except TimeoutError as e:

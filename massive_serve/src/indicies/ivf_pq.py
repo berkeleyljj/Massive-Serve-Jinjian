@@ -13,8 +13,6 @@ import faiss
 import numpy as np
 import torch
 
-from src.indicies.index_utils import convert_pkl_to_jsonl, get_passage_pos_ids
-
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -59,20 +57,11 @@ class IVFPQIndexer(object):
         self.n_subquantizers = n_subquantizers
         self.code_size = code_size
 
-        if os.path.exists(index_path) and os.path.exists(self.meta_file):
-            print("Loading index...")
-            self.index = faiss.read_index(index_path)
-            self.index_id_to_db_id = self.load_index_id_to_db_id()
-            self.index.nprobe = self.probe
-        else:
-            self.index_id_to_db_id = []
-            if not os.path.exists(self.trained_index_path):
-                print ("Training index...")
-                self._sample_and_train_index()
-
-            print ("Building index...")
-            self.index = self._add_keys(self.index_path, self.prev_index_path if self.prev_index_path is not None else self.trained_index_path)
-        
+        print("Loading index...")
+        self.index = faiss.read_index(index_path)
+        self.index_id_to_db_id = self.load_index_id_to_db_id()
+        self.index.nprobe = self.probe
+            
         if self.pos_map_save_path is not None:
             self.psg_pos_id_map = self.load_psg_pos_id_map()
 

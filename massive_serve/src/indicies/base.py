@@ -4,9 +4,9 @@ import logging
 import numpy as np
 import torch
 
-# from .flat import FlatIndexer
+from .flat import FlatIndexer
 from .ivf_flat import IVFFlatIndexer
-# from .ivf_pq import IVFPQIndexer
+from .ivf_pq import IVFPQIndexer
 
 
 class Indexer(object):
@@ -37,7 +37,7 @@ class Indexer(object):
                 meta_file=meta_file,
                 passage_dir=passage_dir,
                 pos_map_save_path=pos_map_save_path,
-                dimension=self.args.projection_size,
+                dimension=None,
             )
         elif self.index_type == "IVFFlat":
             self.datastore = IVFFlatIndexer(
@@ -61,13 +61,13 @@ class Indexer(object):
                 trained_index_path=trained_index_path,
                 passage_dir=passage_dir,
                 pos_map_save_path=pos_map_save_path,
-                sample_train_size=self.args.sample_train_size,
+                sample_train_size=None,
                 prev_index_path=None,
-                dimension=self.args.projection_size,
-                ncentroids=self.args.ncentroids,
-                probe=self.args.probe,
-                n_subquantizers=self.args.n_subquantizers,
-                code_size=self.args.n_bits,
+                dimension=None,
+                ncentroids=None,
+                probe=self.cfg.nprobe,
+                n_subquantizers=None,
+                code_size=None,
             )
         else:
             raise NotImplementedError

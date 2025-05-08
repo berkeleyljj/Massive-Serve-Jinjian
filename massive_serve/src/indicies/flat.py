@@ -7,8 +7,6 @@ import faiss
 import numpy as np
 import torch
 
-from src.indicies.index_utils import convert_pkl_to_jsonl, get_passage_pos_ids
-
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
