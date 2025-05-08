@@ -170,23 +170,17 @@ class IVFPQIndexer(object):
             pickle.dump(self.index_id_to_db_id, fout)
         print ('Adding took {} s'.format(time.time() - start_time))
         return index
-    
-    def build_passage_pos_id_map(self, ):
-        convert_pkl_to_jsonl(self.passage_dir)
-        passage_pos_ids = get_passage_pos_ids(self.passage_dir, self.pos_map_save_path)
-        return passage_pos_ids
 
     def load_psg_pos_id_map(self,):
-        if os.path.exists(self.pos_map_save_path):
-            with open(self.pos_map_save_path, 'rb') as f:
-                psg_pos_id_map = pickle.load(f)
-        else:
-            psg_pos_id_map = self.build_passage_pos_id_map()
+        with open(self.pos_map_save_path, 'rb') as f:
+            psg_pos_id_map = pickle.load(f)
         return psg_pos_id_map
     
     def _id2psg(self, shard_id, chunk_id):
         filename, position = self.psg_pos_id_map[shard_id][chunk_id]
-        with open(filename, 'r') as file:
+        filename = filename.split('/')[-1]
+        file_path = os.path.join(self.passage_dir, filename)
+        with open(file_path, 'r') as file:
             file.seek(position)
             line = file.readline()
         return json.loads(line)
