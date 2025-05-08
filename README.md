@@ -8,24 +8,23 @@ pip install massive-serve --upgrade
 ```
 
 ## Usage
+List of currently supported datastores can be found in [massive-serve collection](https://huggingface.co/collections/rulins/massive-serve-681a3d499212ccfcd07ebc16).
+I will keep adding more domains and retriever combinations! Open an issue to request new datastores 😉.
 
-To serve a demo datastore (30MB):
+To serve a demo datastore:
 ```bash
 massive-serve serve --domain_name demo
 ```
 
-To serve a wikipedia datastore (60GB):
+To serve a wikipedia datastore:
 ```bash
-massive-serve serve --domain_name dpr_wiki_contriever
+massive-serve serve --domain_name dpr_wiki_contriever_ivfpq
 ```
 
-To avoid manually specifying the data storage location, set the `DATASTORE_PATH` environment variable to your desired data directory.
+Useful notes:
+- To avoid manually specifying the data storage location (e.g., in slurm jobs), set the `DATASTORE_PATH` environment variable to your desired data directory.
+- To specify the `nprobe` (default to 64, which defines how many clusters out of 2024 you'd like to performance search in IVF index), just add ``nprobe: XX`` in your curl request.
 
-List of currently supported datastores (check the latest update in [massive-serve collection](https://huggingface.co/collections/rulins/massive-serve-681a3d499212ccfcd07ebc16)):
-* dpr_wiki_contriever
-* dpr_wiki_e5_base_v2
-
-More domains and retriever combinations coming soon!
 
 It will then download and serve the index and print the API and one example request in the terminal, e.g.,
 ```markdown
