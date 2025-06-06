@@ -17,7 +17,6 @@ setup(
     zip_safe=False,
     install_requires=[
         "click",  # Required for CLI
-        ["faiss-gpu", "faiss"],  # Either GPU or CPU version of FAISS
         "tqdm",
         "flask",
         "flask-cors",
@@ -25,9 +24,10 @@ setup(
         "transformers",
         "numpy",
         "sentence-transformers",
+        "faiss-gpu",  # Default to GPU version
     ],
     extras_require={
-        'st': ['sentence-transformers'],
+        'cpu': ['faiss'],  # Optional CPU version
     },
     entry_points={
         'console_scripts': [
