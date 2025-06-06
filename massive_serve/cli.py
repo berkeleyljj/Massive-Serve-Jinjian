@@ -37,10 +37,9 @@ def serve(domain_name):
     os.environ['MASSIVE_SERVE_DOMAIN_NAME'] = domain_name
     
     # Set datastore path to `~` if it is not already set
-    env = os.environ.copy()
-    if 'DATASTORE_PATH' not in env:
+    if 'DATASTORE_PATH' not in os.environ:
         datastore_path = input(f"Please enter a path to save the downloaded index (default: {os.path.expanduser('~')}): ").strip()
-        env['DATASTORE_PATH'] = datastore_path if datastore_path else os.path.expanduser('~')
+        os.environ['DATASTORE_PATH'] = datastore_path if datastore_path else os.path.expanduser('~')
     
     # Add package root to PYTHONPATH
     package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +47,7 @@ def serve(domain_name):
         sys.path.insert(0, package_root)
     
     # Check and prepare index
-    save_path = os.path.join(os.path.expanduser(env['DATASTORE_PATH']), domain_name)
+    save_path = os.path.join(os.path.expanduser(os.environ['DATASTORE_PATH']), domain_name)
     if not check_and_prepare_index(save_path, domain_name):
         raise FileNotFoundError("Failed to prepare index")
     
