@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.16",
+    version="0.1.17",
     packages=find_namespace_packages(include=['massive_serve*']),
     package_data={
         'massive_serve': [
