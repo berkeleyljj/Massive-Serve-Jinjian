@@ -199,4 +199,11 @@ If you find our package helpful, please cite:
   pages={91260--91299},
   year={2024}
 }
+
+@software{massiveserve2025,
+  author = {Shao, Rulin},
+  title  = {MassiveServe: Serving and Sharing Massive Datastores},
+  year   = 2025,
+  url    = {https://github.com/RulinShao/massive-serve}
+}
 ```
