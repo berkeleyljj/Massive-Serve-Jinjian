@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 import click
-from .data_utils import prepare_for_upload, prepare_after_download
+from .data_utils import prepare_for_upload, prepare_after_download, check_and_prepare_index
 
 @click.group()
 def cli():
@@ -47,22 +47,10 @@ def serve(domain_name):
     if package_root not in sys.path:
         sys.path.insert(0, package_root)
     
-    # Download the wiki index dataset
+    # Check and prepare index
     save_path = os.path.join(os.path.expanduser(env['DATASTORE_PATH']), domain_name)
-    subprocess.run(['huggingface-cli', 'download', f'rulins/massive_serve_{domain_name}', '--repo-type', 'dataset', '--local-dir', save_path])
-    
-    # Combine any split files
-    print("Combining split files...")
-    prepare_after_download(save_path)
-    
-    # Verify that the index file exists
-    index_dir = os.path.join(save_path, 'index')
-    index_files = [f for f in os.listdir(index_dir) if f.endswith('.faiss')]
-    if len(index_files) != 1:
-        raise FileNotFoundError(f"Expected exactly one .faiss file in {index_dir}, found {len(index_files)}")
-    index_path = os.path.join(index_dir, index_files[0])
-    if not os.path.exists(index_path):
-        raise FileNotFoundError(f"Index file not found at {index_path} after combining split files")
+    if not check_and_prepare_index(save_path, domain_name):
+        raise FileNotFoundError("Failed to prepare index")
     
     print(f"Starting {domain_name} server...")
     # Run the worker node script

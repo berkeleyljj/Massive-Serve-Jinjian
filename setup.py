@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.14",
+    version="0.1.15",
     packages=find_namespace_packages(include=['massive_serve*']),
     package_data={
         'massive_serve': [
@@ -17,7 +17,7 @@ setup(
     zip_safe=False,
     install_requires=[
         "click",  # Required for CLI
-        "faiss-cpu",  # or faiss-gpu if you're using GPU
+        "faiss-gpu>=1.7.0",  # GPU version of FAISS, flexible version
         "tqdm",
         "flask",
         "flask-cors",

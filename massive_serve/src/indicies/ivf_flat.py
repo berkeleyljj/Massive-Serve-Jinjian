@@ -187,7 +187,10 @@ class IVFFlatIndexer(object):
         with open(file_path, 'r') as file:
             file.seek(position)
             line = file.readline()
-        return json.loads(line)
+        try:
+            return json.loads(line)
+        except:
+            breakpoint()
     
     def _get_passage(self, index_id):
         shard_id, chunk_id = self.index_id_to_db_id[index_id]

@@ -254,6 +254,55 @@ def prepare_after_download(data_dir):
                 else:
                     print("Warning: Failed to combine index")
 
+def check_and_prepare_index(save_path, domain_name):
+    """
+    Check if index exists (either merged or split) and download/combine if needed.
+    Returns True if index exists or was successfully downloaded and prepared.
+    """
+    index_dir = os.path.join(save_path, 'index')
+    
+    # Check for merged index
+    index_exists = False
+    if os.path.exists(index_dir):
+        index_files = [f for f in os.listdir(index_dir) if f.endswith('.faiss')]
+        if len(index_files) == 1:
+            index_path = os.path.join(index_dir, index_files[0])
+            if os.path.exists(index_path):
+                print(f"Found existing merged index at {index_path}")
+                index_exists = True
+    
+    # Check for split index if merged index not found
+    if not index_exists and os.path.exists(index_dir):
+        split_dirs = [d for d in os.listdir(index_dir) if d.endswith('.split')]
+        if split_dirs:
+            print(f"Found split index directories: {split_dirs}")
+            index_exists = True
+    
+    # Download only if neither version exists
+    if not index_exists:
+        print("No existing index found, downloading from Hugging Face...")
+        import subprocess
+        subprocess.run(['huggingface-cli', 'download', f'rulins/massive_serve_{domain_name}', '--repo-type', 'dataset', '--local-dir', save_path])
+        
+        # Combine any split files
+        print("Combining split files...")
+        prepare_after_download(save_path)
+    else:
+        print("Using existing index files")
+    
+    # Verify that the index file exists
+    if not os.path.exists(index_dir):
+        return False
+        
+    index_files = [f for f in os.listdir(index_dir) if f.endswith('.faiss')]
+    if len(index_files) != 1:
+        raise FileNotFoundError(f"Expected exactly one .faiss file in {index_dir}, found {len(index_files)}")
+    index_path = os.path.join(index_dir, index_files[0])
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(f"Index file not found at {index_path} after combining split files")
+    
+    return True
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Handle large files for Hugging Face upload/download')
