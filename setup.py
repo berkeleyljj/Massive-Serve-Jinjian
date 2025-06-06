@@ -17,7 +17,7 @@ setup(
     zip_safe=False,
     install_requires=[
         "click",  # Required for CLI
-        "faiss-gpu|faiss",  # Either GPU or CPU version of FAISS
+        ["faiss-gpu", "faiss"],  # Either GPU or CPU version of FAISS
         "tqdm",
         "flask",
         "flask-cors",
