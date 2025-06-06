@@ -24,10 +24,11 @@ setup(
         "transformers",
         "numpy",
         "sentence-transformers",
-        "faiss",
+        "faiss-cpu",  # or faiss-gpu if you're using GPU
     ],
     extras_require={
-        'gpu': ['faiss-gpu'],
+        'cpu': ['faiss-cpu'],  # For CPU-only installations
+        'gpu': ['faiss-gpu'],  # For GPU installations (requires conda)
     },
     entry_points={
         'console_scripts': [
