@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name="massive_serve",
-    version="0.1.17",
+    version="0.1.18",
     packages=find_namespace_packages(include=['massive_serve*']),
     package_data={
         'massive_serve': [
@@ -24,10 +24,10 @@ setup(
         "transformers",
         "numpy",
         "sentence-transformers",
-        "faiss-gpu",  # Default to GPU version
+        "faiss",
     ],
     extras_require={
-        'cpu': ['faiss'],  # Optional CPU version
+        'gpu': ['faiss-gpu'],
     },
     entry_points={
         'console_scripts': [
