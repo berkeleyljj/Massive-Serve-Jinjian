@@ -22,13 +22,14 @@ class Indexer(object):
         if len(index_files) != 1:
             raise ValueError(f"Expected exactly one .faiss file in {index_dir}, found {len(index_files)}")
         index_path = os.path.join(index_dir, index_files[0])
-        meta_file = os.path.join(index_dir, index_files[0].replace('.faiss', '.faiss.meta'))
-        assert os.path.exists(index_path) and os.path.exists(meta_file)
+        #meta_file = os.path.join(index_dir, index_files[0].replace('.faiss', '.faiss.meta'))
+        meta_file = "/home/ubuntu/Jinjian/retrieval-scaling/built_index/index/index_id_to_db_id.npy"
+        #assert os.path.exists(index_path) and os.path.exists(meta_file)
         
         passage_dir = os.path.join(data_root, cfg.domain_name, 'passages')
         embedding_paths = None  # assume index is already built
         trained_index_path = None
-        pos_map_save_path = os.path.join(data_root, cfg.domain_name, 'passage_pos_id_map.pkl')
+        pos_map_save_path = os.path.join(data_root, cfg.domain_name, 'id_to_passage.jsonl')
         
         if self.index_type == "Flat":
             self.datastore = FlatIndexer(

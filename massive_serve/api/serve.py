@@ -8,6 +8,17 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import threading
 import queue
+from flask import send_from_directory
+import psutil
+import time
+startup_start = time.time()
+
+# Function to measure memory usage
+def print_mem_use(label=""):
+    process = psutil.Process(os.getpid())
+    mem_bytes = process.memory_info().rss
+    mem_mb = mem_bytes / 1024 / 1024
+    print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
 
 from massive_serve.api.api_index import get_datastore
 
@@ -41,13 +52,15 @@ CORS(app)
 
 
 class Item:
-    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, ) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
         self.n_docs = n_docs
         self.nprobe = nprobe
         self.searched_results = None
+        self.expand_index_id = expand_index_id
+        self.expand_offset = expand_offset
     
     def get_dict(self,):
         dict_item = {
@@ -57,6 +70,8 @@ class Item:
             'n_docs': self.n_docs,
             'nprobe': self.nprobe,
             'searched_results': self.searched_results,
+            'expand_index_id' : self.expand_index_id,
+            'expand_offset' : self.expand_offset
         }
         return dict_item
 
@@ -66,8 +81,9 @@ class SearchQueue:
         self.queue = queue.Queue()
         self.lock = threading.Lock()
         self.current_search = None
+        print_mem_use("Before get datastore")
         self.datastore = get_datastore(ds_cfg)
-
+        print_mem_use("After get datastore")
         self.log_queries = log_queries
         self.query_log = 'cached_queries.jsonl'
     
@@ -77,7 +93,7 @@ class SearchQueue:
                 self.current_search = item
                 if item.nprobe is not None:
                     self.datastore.index.nprobe = item.nprobe
-                results = self.datastore.search(item.query, item.n_docs)
+                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset)
                 self.current_search = None
                 return results
             else:
@@ -106,20 +122,25 @@ def search():
             query=request.json['query'],
             n_docs=request.json.get('n_docs', 1),
             nprobe=request.json.get('nprobe', None),
+            expand_index_id = request.json.get('expand_index_id'),
+            expand_offset = request.json.get('expand_offset', 1),
             domains=ds_cfg.domain_name,
         )
-        # Perform the search synchronously with 60s timeout
-        timer = threading.Timer(60.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 60 seconds')))
+
+        # Perform the search synchronously with 600s timeout
+        timer = threading.Timer(600.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 60 seconds')))
         timer.start()
         try:
             results = search_queue.search(item)
             timer.cancel()
-            print(results)
+            #print(results)
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
                 "query": item.query,
                 "n_docs": item.n_docs,
                 "nprobe": item.nprobe,
+                "expand_index_id" : request.json.get('expand_index_id'),
+                "expand_offset" : request.json.get('expand_offset', 1),
                 "results": results,
             }), 200
         except TimeoutError as e:
@@ -156,6 +177,9 @@ def queue_size():
 def home():
     return jsonify("Hello! What you are looking for?")
 
+@app.route('/ui')
+def serve_ui():
+    return send_from_directory('.', 'index.html')
 
 def find_free_port():
     with socket.socket() as s:
@@ -164,7 +188,8 @@ def find_free_port():
 
 
 def main():
-    port = find_free_port()
+    #port = find_free_port()
+    port = 55893
     server_id = socket.gethostname()
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}
@@ -190,7 +215,7 @@ def main():
 {CYAN}curl -X POST {endpoint} -H "Content-Type: application/json" -d '{YELLOW}{{"query": "Tell me more about the stories of Einstein.", "n_docs": 1, "domains": "{domain_name}"}}{CYAN}'{RESET}
 """
     print(test_request)
-    
+    print(f"Deployment completed in {time.time() - startup_start:.2f} seconds")
     app.run(host='0.0.0.0', port=port)
 
 

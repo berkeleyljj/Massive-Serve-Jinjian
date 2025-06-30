@@ -8,6 +8,15 @@ import torch
 from massive_serve.src.search import embed_queries
 from massive_serve.src.indicies.base import Indexer
 
+import psutil
+
+# Function to measure memory usage
+def print_mem_use(label=""):
+    process = psutil.Process(os.getpid())
+    mem_bytes = process.memory_info().rss
+    mem_mb = mem_bytes / 1024 / 1024
+    print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
+
 
 device = 'cuda' if torch.cuda.is_available()  else 'cpu'
 
@@ -38,10 +47,12 @@ class DatastoreAPI():
         
         self.cfg = cfg
     
-    def search(self, query, n_docs=3):
+    def search(self, query, n_docs, nprobe=None, expand_index_id=None, expand_offset=1):
+        print("✅ START OF search()")
         query_embedding = self.embed_query(query)
-        searched_scores, searched_passages, db_ids  = self.index.search(query_embedding, n_docs)
-        results = {'scores': searched_scores, 'passages': searched_passages, 'IDs': db_ids}
+        searched_scores, searched_passages  = self.index.search(query_embedding, n_docs, nprobe, expand_index_id, expand_offset)
+        print("✅ END OF search()")
+        results = {'scores': searched_scores, 'passages': searched_passages}
         return results
     
     def embed_query(self, query):
@@ -55,8 +66,11 @@ class DatastoreAPI():
     
 
 def get_datastore(cfg):
+    print_mem_use("Before DSAPI")
     ds = DatastoreAPI(cfg)
+    print_mem_use("After API before test search")
     test_search(ds)
+    print_mem_use("After test search")
     return ds
 
 

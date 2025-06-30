@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAISS Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f7f9fc;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-row">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white border-r h-screen p-4 overflow-y-auto fixed left-0 top-0 z-10 hidden md:block">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Query History</h2>
+    <ul id="queryHistory" class="space-y-2 text-sm text-gray-700"></ul>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
+    <!-- Rounded Header -->
+    <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
+      <h1 class="text-2xl font-bold text-gray-900">FAISS Demo</h1>
+    </header>
+
+    <!-- Results Area -->
+    <main id="results" class="flex-1 w-full px-6 pt-32 pb-4 space-y-4 overflow-y-auto mb-36"></main>
+
+    <!-- Search Bar -->
+  <div class="fixed bottom-0 right-0 md:left-64 md:right-0 bg-white shadow-md py-4 px-6 flex flex-wrap items-center gap-3 w-full">
+    <label for="nprobe" class="text-sm font-medium">nprobe</label>
+    <select id="nprobe" class="border rounded-md p-1 text-sm">
+      <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option>
+    </select>
+
+    <label for="k" class="text-sm font-medium">k</label>
+    <select id="k" class="border rounded-md p-1 text-sm">
+      <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
+    </select>
+
+    <!-- <label for="wordLimit" class="text-sm font-medium">word limit</label>
+    <input id="wordLimit" type="number" min="0" placeholder="e.g. 100"
+      class="border rounded-md p-1 text-sm w-24" /> -->
+
+    <input id="queryInput" type="text" placeholder="Ask your question..."
+      class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
+
+    <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    const historyList = [];
+
+    function isRedundant(existingTexts, newText) {
+      return existingTexts.some(t => t.includes(newText) || newText.includes(t));
+    }
+
+    function addToHistory(query, k, nprobe, wordLimit){
+      const existingIndex = historyList.findIndex(item => item.text === query);
+      if (existingIndex !== -1) {
+        historyList.splice(existingIndex, 1); // remove duplicate
+      }
+      historyList.unshift({text: query, k, nprobe});
+
+      const ul = document.getElementById('queryHistory');
+      ul.innerHTML = '';
+      for (const item of historyList) {
+        const li = document.createElement('li');
+        //li.textContent = item.text;
+        // Old
+        li.innerHTML = `
+          <div class="font-medium">${item.text}</div>
+          <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
+        `;
+        // Rename and delete addition
+        // li.innerHTML = `
+        //   <div class="flex justify-between items-center">
+        //     <div>
+        //       <div class="font-medium">${item.text}</div>
+        //       <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
+        //     </div>
+        //     <div class="relative">
+        //       <button class="text-gray-400 hover:text-gray-600 focus:outline-none" onclick="toggleMenu(this)">⋯</button>
+        //       <div class="menu hidden absolute right-0 mt-2 w-24 bg-white border border-gray-200 rounded-md shadow-md z-10 text-sm">
+        //         <button onclick="renameHistory('${item.text}')" class="block w-full text-left px-3 py-1 hover:bg-gray-100">Rename</button>
+        //         <button onclick="deleteHistory('${item.text}')" class="block w-full text-left px-3 py-1 text-red-600 hover:bg-gray-100">Delete</button>
+        //       </div>
+        //     </div>
+        //   </div>
+        // `;
+        li.className = "cursor-pointer hover:text-teal-600";
+        li.onclick = () => {
+          document.getElementById('queryInput').value = item.text;
+          document.getElementById('k').value = item.k;
+          document.getElementById('nprobe').value = item.nprobe;
+          submitQuery(false); // reuse existing, no re-log
+        };
+        ul.appendChild(li);
+      }
+    }
+
+    async function submitQuery(addToHist) {
+      const query = document.getElementById('queryInput').value.trim();
+      const nprobe = document.getElementById('nprobe').value;
+      const k = document.getElementById('k').value;
+      // const wordLimit = document.getElementById('wordLimit').value;
+      if (!query) return;
+
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+
+      const queryDisplay = document.createElement('div');
+      //queryDisplay.className = "text-gray-700 font-medium mb-2";
+      queryDisplay.className = "text-gray-700 font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
+      queryDisplay.innerHTML = `
+        <div>Query: <span class="font-semibold">${query}</span></div>
+        <div class="text-sm text-gray-500">
+          nprobe: ${nprobe} | k: ${k}
+        </div>
+      `;
+      container.appendChild(queryDisplay);
+
+
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = "text-gray-500 text-sm";
+      loadingMsg.innerText = "Searching...";
+      container.appendChild(loadingMsg);
+
+      try {
+        const response = await fetch('http://192.222.50.67:55893/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // body: JSON.stringify({ query, nprobe: parseInt(nprobe), n_docs: parseInt(k) })
+          body: JSON.stringify({
+            query,
+            nprobe: parseInt(nprobe),
+            n_docs: parseInt(k)
+            //word_limit: parseInt(document.getElementById('wordLimit').value) || undefined
+          })
+        });
+
+        const data = await response.json();
+        container.innerHTML = '';
+        container.appendChild(queryDisplay);
+
+        if (addToHist) addToHistory(query, k, nprobe);
+
+        const passages = data?.results?.passages?.[0] || data?.passages?.[0];
+        if (Array.isArray(passages) && passages.length > 0) {
+          const shownTexts = [];
+          let shownCount = 0;
+
+          for (const passage of passages) {
+            const text = passage.text?.trim();
+            if (!text) continue;
+
+            const wordCount = text.split(/\s+/).filter(Boolean).length;
+            if (wordCount < 10) continue;
+            if (isRedundant(shownTexts, text)) continue;
+
+            shownTexts.push(text);
+            shownCount += 1;
+
+            const div = document.createElement('div');
+            div.className = 'bg-white p-4 rounded-2xl shadow-md';
+
+            const source = passage.source || 'unknown';
+            const queryWords = query.toLowerCase().split(/\s+/);
+            const fullText = passage.text?.trim() || "";
+            const centerText = passage.center_text?.trim();
+
+            // Highlight query words first
+            let highlightedText = fullText.replace(/\b(\w+)\b/gi, word =>
+              queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
+            );
+
+            div.innerHTML = `
+              <div class="text-gray-700 text-sm mb-2 italic">
+                #${shownCount} • Source: <span class="font-semibold">${source}</span>
+              </div>
+              <div class="text-gray-900 leading-relaxed mb-2">${highlightedText}</div>
+              <button class="text-sm text-blue-600 hover:underline" onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+            `;
+
+            // const source = passage.source || 'unknown';
+            // const queryWords = query.toLowerCase().split(/\s+/);
+            // const highlightedText = text.replace(/\b(\w+)\b/gi, word =>
+            //   queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
+            // );
+
+            // div.innerHTML = `
+            //   <div class="text-gray-700 text-sm mb-2 italic">#${shownCount} • Source: <span class="font-semibold">${source}</span></div>
+            //   <div class="text-gray-900 leading-relaxed">${highlightedText}</div>
+            // `;
+            container.appendChild(div);
+          }
+
+          if (shownCount === 0) {
+            const none = document.createElement('div');
+            none.className = "text-gray-500 text-sm";
+            none.innerText = "No relevant non-redundant results found.";
+            container.appendChild(none);
+          }
+
+        } else {
+          const noResult = document.createElement('div');
+          noResult.className = "text-gray-500 text-sm";
+          noResult.innerText = "No relevant result found.";
+          container.appendChild(noResult);
+        }
+
+      } catch (err) {
+        container.innerHTML = '';
+        const errorMsg = document.createElement('div');
+        errorMsg.className = "text-red-500 text-sm";
+        errorMsg.innerText = "Error fetching result.";
+        container.appendChild(errorMsg);
+        console.error(err);
+      }
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function expandPassage(button, index_id) {
+      const offset = parseInt(button.dataset.offset || "1");
+
+      const response = await fetch('http://192.222.50.67:55893/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: "",  // query is ignored for expansion
+          expand_index_id: index_id,
+          expand_offset: offset
+        })
+      });
+
+      const data = await response.json();
+      const passages = data?.results?.passages?.[0];
+      const passage = Array.isArray(passages) ? passages[0] : null;
+      if (!passage?.text) return;
+
+      const parent = button.closest('.bg-white');
+      const textDiv = parent.querySelector('.text-gray-900');
+      const query = document.getElementById('queryInput').value.trim();
+      const queryWords = query.toLowerCase().split(/\s+/);
+
+      let highlighted = passage.text.replace(/\b(\w+)\b/gi, word =>
+        queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
+      );
+
+      textDiv.innerHTML = highlighted;
+
+      button.dataset.offset = offset + 1;  // next round
+    }
+
+    // Listen for Enter key to trigger search
+    document.getElementById('queryInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        submitQuery(true);
+      }
+    });
+
+    // function deleteHistory(queryText) {
+    //   const index = historyList.findIndex(item => item.text === queryText);
+    //   if (index !== -1) {
+    //     historyList.splice(index, 1);
+    //     addToHistory('', '', '', ''); 
+    //   }
+    // }
+
+    // function renameHistory(oldText) {
+    //   const newText = prompt("Rename query:", oldText);
+    //   if (newText && newText.trim() !== "") {
+    //     const index = historyList.findIndex(item => item.text === oldText);
+    //     if (index !== -1) {
+    //       historyList[index].text = newText.trim();
+    //       addToHistory('', '', '', ''); 
+    //     }
+    //   }
+    // }
+
+    // function toggleMenu(button) {
+    //   const allMenus = document.querySelectorAll('.menu');
+    //   allMenus.forEach(menu => {
+    //     if (!menu.contains(button.nextElementSibling)) {
+    //       menu.classList.add('hidden');
+    //     }
+    //   });
+
+    //   const menu = button.nextElementSibling;
+    //   menu.classList.toggle('hidden');
+    // }
+
+    // document.addEventListener('click', function(e) {
+    //   const isMenuButton = e.target.matches('button') && e.target.textContent === '⋯';
+    //   if (!isMenuButton) {
+    //     document.querySelectorAll('.menu').forEach(menu => menu.classList.add('hidden'));
+    //   }
+    // });
+  </script>
+
+  
+</body>
+</html>

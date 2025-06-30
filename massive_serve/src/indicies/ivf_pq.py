@@ -3,15 +3,46 @@ import json
 import random
 import logging
 import pickle
+import numpy as np
 import time
 import glob
 from tqdm import tqdm
 import pdb
 import re
-
 import faiss
 import numpy as np
 import torch
+
+import psutil
+import os
+import logging
+import sys
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logging.getLogger().setLevel(logging.INFO)
+
+# Function to measure memory usage
+def print_mem_use(label=""):
+    process = psutil.Process(os.getpid())
+    mem_bytes = process.memory_info().rss
+    mem_mb = mem_bytes / 1024 / 1024
+    print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
+
+# Function to measure delaydef log_latency_breakdown(t0, t1, t2, t3, t4):
+def log_latency_breakdown(t0, t1, t2, t3, t4):
+    try:
+        logging.info("\n Latency breakdown:")
+        logging.info(f"  (1) Pre-search prep          : {round((t1 - t0)*1000, 2)} ms")
+        logging.info(f"  (2) index.search             : {round((t2 - t1)*1000, 2)} ms")
+        logging.info(f"  (3) get_retrieved_passages   : {round((t3 - t2)*1000, 2)} ms")
+        logging.info(f"  (4) post-processing & return : {round((t4 - t3)*1000, 2)} ms")
+        logging.info(f"  🔁 Total                     : {round((t4 - t0)*1000, 2)} ms\n")
+    except Exception as e:
+        logging.warning(f"⚠️ Failed to log latency: {e}")
+
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -46,30 +77,56 @@ class IVFPQIndexer(object):
         self.prev_index_path = prev_index_path  # add new data to it instead of training new clusters
         self.trained_index_path = trained_index_path  # path to save the trained index
         self.passage_dir = passage_dir
-        self.pos_map_save_path = pos_map_save_path
+        self.pos_map_save_path = "/home/ubuntu/Jinjian/retrieval-scaling/built_index/index_mapping.np.npy"
         self.cuda = False
 
         self.sample_size = sample_train_size
         self.dimension = dimension
         self.ncentroids = ncentroids
-        self.probe = probe
+        self.probe = 32
         self.num_keys_to_add_at_a_time = num_keys_to_add_at_a_time
         self.n_subquantizers = n_subquantizers
         self.code_size = code_size
+        self.position_array = np.load("position_array.npy")
+        self.filename_index_array = np.load("filename_index_array.npy")
+        self.filenames = self._load_filenames()
 
         print("Loading index...")
+        start_idx = time.time()
         self.index = faiss.read_index(index_path)
-        self.index_id_to_db_id = self.load_index_id_to_db_id()
+        end_idx = time.time()
+        #print_mem_use("load_index after faiss.read_index")
         self.index.nprobe = self.probe
-            
-        if self.pos_map_save_path is not None:
-            self.psg_pos_id_map = self.load_psg_pos_id_map()
+        print(f"[load_index] Set nprobe to {self.probe}")
+        print(f"Index load time: {end_idx - start_idx:.2f} seconds")
 
-    def load_index_id_to_db_id(self,):
-        with open(self.meta_file, "rb") as reader:
-            index_id_to_db_id = pickle.load(reader)
-        return index_id_to_db_id
-    
+        if self.passage_dir is not None:
+            #print_mem_use("load_index before loading position arrays")
+            start_map = time.time()
+            self.position_array = np.load("position_array.npy")
+            self.filename_index_array = np.load("filename_index_array.npy")
+            self.filenames = self._load_filenames()
+            end_map = time.time()
+            print(f"Position map load time: {end_map - start_map:.2f} seconds")
+            #print_mem_use("load_index after loading position arrays")
+
+
+
+    def _load_filenames(self):
+        # This must match the ordering used when building the arrays
+        filenames = [f for f in os.listdir(self.passage_dir) if f.endswith(".jsonl")]
+        filenames = sorted(filenames, key=self._sort_func)
+        return filenames
+
+    def _sort_func(self, filename):
+        domain = filename.split('raw_passages')[0].split('--')[0]
+        rank = int(filename.split('passages_')[-1].split("-")[0])
+        shard_idx = int(filename.split("-of-")[0].split("-")[-1])
+        deprioritized_domains = ["massiveds-rpj_arxiv", "massiveds-rpj_github", "massiveds-rpj_book", "lb_full"]
+        deprioritized_domains_index = {domain: i + 1 for i, domain in enumerate(deprioritized_domains)}
+        deprioritized = deprioritized_domains_index.get(domain, 0)
+        return (deprioritized, domain, rank, shard_idx)     
+
     def load_embeds(self, shard_id=None):
         all_ids, all_embeds = [], []
         offset = 0
@@ -170,38 +227,194 @@ class IVFPQIndexer(object):
             pickle.dump(self.index_id_to_db_id, fout)
         print ('Adding took {} s'.format(time.time() - start_time))
         return index
+    # Old
+    # def get_retrieved_passages(self, all_indices):
+    #     all_passages = []
+    #     for q_idx, query_indices in enumerate(all_indices):
+    #         passages_per_query = []
+    #         seen_keys = set()  # set of (filename, position) tuples
 
-    def load_psg_pos_id_map(self,):
-        with open(self.pos_map_save_path, 'rb') as f:
-            psg_pos_id_map = pickle.load(f)
-        return psg_pos_id_map
-    
-    def _id2psg(self, shard_id, chunk_id):
-        filename, position = self.psg_pos_id_map[shard_id][chunk_id]
-        filename = filename.split('/')[-1]
-        file_path = os.path.join(self.passage_dir, filename)
-        with open(file_path, 'r') as file:
-            file.seek(position)
-            line = file.readline()
-        return json.loads(line)
-    
-    def _get_passage(self, index_id):
-        shard_id, chunk_id = self.index_id_to_db_id[index_id]
-        return self._id2psg(shard_id, chunk_id)
-    
+    #         # print(f"[DEBUG] Query {q_idx} top-{len(query_indices)} indices:")
+
+    #         for i, index_id in enumerate(query_indices):
+    #             position = int(self.position_array[index_id])
+    #             filename_idx = int(self.filename_index_array[index_id])
+    #             filename = self.filenames[filename_idx]
+    #             file_path = os.path.join(self.passage_dir, filename)
+    #             key = (filename, position)
+
+    #             # Optional deduplication warning
+    #             if key in seen_keys:
+    #                 print(f"[WARN] index_id={index_id} (#{i}) points to duplicate passage at {filename} offset {position}")
+    #             else:
+    #                 seen_keys.add(key)
+
+    #             with open(file_path, 'r') as f:
+    #                 f.seek(position)
+    #                 line = f.readline()
+
+    #             passage = json.loads(line)
+    #             source = filename.split('--')[0] if '--' in filename else 'unknown'
+
+    #             passages_per_query.append({
+    #                 "text": passage["text"],
+    #                 "source": source,
+    #                 "index_id": int(index_id),
+    #                 "filename": filename,
+    #                 "position": position
+    #             })
+
+    #             # print(f"[INFO] index_id={index_id} (#{i}) → {filename}:{position} → \"{passage['text'][:50]}\"")
+    #             # print(f"[INFO] FAISS index size (index.ntotal): {self.index.ntotal}")
+
+
+    #         all_passages.append(passages_per_query)
+    #     return all_passages
+
+
+    def read_text(self, index_id):
+        pos = int(self.position_array[index_id])
+        fname_idx = int(self.filename_index_array[index_id])
+        fname = self.filenames[fname_idx]
+        file_path = os.path.join(self.passage_dir, fname)
+        try:
+            with open(file_path, 'r') as f:
+                f.seek(pos)
+                line = f.readline()
+                return json.loads(line).get("text", "")
+        except Exception as e:
+            print(f"[WARN] Failed to read index_id={index_id} → {fname}:{pos} — {e}")
+            return None
+
     def get_retrieved_passages(self, all_indices):
-        passages, db_ids = [], []
+        all_passages = []
         for query_indices in all_indices:
-            passages_per_query = [self._get_passage(int(index_id))["text"] for index_id in query_indices]
-            db_ids_per_query = [self.index_id_to_db_id[int(index_id)] for index_id in query_indices]
-            passages.append(passages_per_query)
-            db_ids.append(db_ids_per_query)
-        return passages, db_ids
-    
-    def search(self, query_embs, k=4096):
-        all_scores, all_indices = self.index.search(query_embs.astype(np.float32), k)
-        all_passages, db_ids = self.get_retrieved_passages(all_indices)
-        return all_scores.tolist(), all_passages, db_ids
+            passages_per_query = []
+            for center_id in query_indices:
+                idx = int(center_id)
+                position = int(self.position_array[idx])
+                filename_idx = int(self.filename_index_array[idx])
+                filename = self.filenames[filename_idx]
+                center_text = self. read_text(idx)
+
+                passages_per_query.append({
+                    "text": center_text.strip(),
+                    "center_text": center_text,
+                    "source": filename.split('--')[0],
+                    "index_id": idx,
+                    "filename": filename,
+                    "position": position
+                })
+            all_passages.append(passages_per_query)
+        return all_passages
+
+    def expand_passage(self, idx, offset=1):
+        position = int(self.position_array[idx])
+        fname_idx = int(self.filename_index_array[idx])
+        filename = self.filenames[fname_idx]
+
+        center_text = self.read_text(idx)
+        text_blocks = [center_text]
+        print(f"[INFO] Expansion offset is {offset}")
+        for o in range(1, offset + 1):
+            for sign in [-1, 1]:
+                neighbor_id = idx + sign * o
+                if 0 <= neighbor_id < len(self.position_array):
+                    neighbor_text = self.read_text(neighbor_id)
+                    if neighbor_text:
+                        if sign == -1:
+                            text_blocks.insert(0, neighbor_text)
+                        else:
+                            text_blocks.append(neighbor_text)
+
+        full_text = " ".join(text_blocks)
+        print(f"[INFO] Expanded text with offset {offset} is: {full_text}")
+        return {
+            "text": full_text.strip(),
+            "source": filename.split('--')[0],
+            "index_id": idx,
+            "filename": filename,
+            "position": position
+        }
+
+    def _get_passage(self, index_id):
+        try:
+            position = int(self.position_array[index_id])
+            filename_idx = int(self.filename_index_array[index_id])
+            filename = self.filenames[filename_idx]
+            file_path = os.path.join(self.passage_dir, filename)
+
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Missing file: {file_path}")
+
+            with open(file_path, 'r') as f:
+                f.seek(position)
+                line = f.readline()
+
+            passage = json.loads(line)
+            source = filename.split('--')[0] if '--' in filename else 'unknown'
+
+            return {
+                "text": passage.get("text", ""),
+                "source": source
+            }
+        except Exception as e:
+            raise RuntimeError(f"Index {index_id} (pos={position}) failed: {e}")
+
+    def search(self, query_embs, k, nprobe, expand_index_id=None, expand_offset=1):
+
+        if expand_index_id is not None:
+            print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
+            result = self.expand_passage(expand_index_id, offset=expand_offset)
+            return None, [[result]]  
+        
+        t0 = time.time()
+        # print_mem_use("search: start")
+        query_embs = query_embs.astype(np.float32)
+        if nprobe is not None:
+            self.index.nprobe = nprobe
+            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
+
+        print(f"[IVFPQIndexer] Target k = {k}")
+        attempt_k = k
+        max_attempts = 5
+        filtered_passages = []
+
+        for attempt in range(max_attempts):
+            print(f"[SEARCH] Attempt {attempt + 1}: trying FAISS top-{attempt_k}")
+            all_scores, all_indices = self.index.search(query_embs, attempt_k)
+            raw_passages = self.get_retrieved_passages(all_indices)
+
+            filtered_passages = []
+            for per_query_passages in raw_passages:
+                unique = []
+                seen_texts = set()
+                for passage in per_query_passages:
+                    text = passage.get("text", "").strip()
+                    if len(text.split()) < 10:
+                        continue
+                    if text in seen_texts:
+                        continue
+                    seen_texts.add(text)
+                    unique.append(passage)
+                    if len(unique) >= k:
+                        break
+                filtered_passages.append(unique)
+
+            # Check if all queries got at least `k` valid results
+            if all(len(passages) >= k for passages in filtered_passages):
+                print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
+                break
+            else:
+                print(f"[SEARCH] Insufficient results — increasing attempt_k")
+                attempt_k *= 10
+
+        # print_mem_use("search after faiss index.search")
+        return all_scores.tolist(), filtered_passages
+
+
+
+
         
 
 
