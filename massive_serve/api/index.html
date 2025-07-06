@@ -30,7 +30,7 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-2xl font-bold text-gray-900">FAISS Demo</h1>
+      <h1 class="text-3xl font-bold text-gray-900">FAISS Demo</h1>
     </header>
 
     <!-- Results Area -->
@@ -106,13 +106,18 @@
       container.innerHTML = '';
 
       const queryDisplay = document.createElement('div');
-      queryDisplay.className = "text-gray-700 font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
+      // queryDisplay.className = "text-gray-700 font-semibold mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
+      queryDisplay.className = "text-gray-700 text-lg font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
       queryDisplay.innerHTML = `
-        <div>Query: <span class="font-semibold">${query}</span></div>
-        <div class="text-sm text-gray-500">
-          nprobe: ${nprobe} | k: ${k}
+        <div>Query: <span class="font-semibold text-xl">${query}</span></div>
+        <div class="flex gap-2 mt-1" id="queryMeta">
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">nprobe: ${nprobe}</span>
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">k: ${k}</span>
+          
         </div>
       `;
+
+
       container.appendChild(queryDisplay);
 
 
@@ -122,6 +127,7 @@
       container.appendChild(loadingMsg);
 
       try {
+        const start_time = performance.now()
         const response = await fetch('http://192.222.59.156:30888/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -133,19 +139,26 @@
             use_rerank: useRerank  // new field sent to backend
           })
         });
+        const end_time = performance.now()
+        const latencyMs = ((end_time - start_time) / 1000).toFixed(2);
 
         const data = await response.json();
         container.innerHTML = '';
         container.appendChild(queryDisplay);
 
-
+        const metaDiv = queryDisplay.querySelector("#queryMeta");
+        metaDiv.innerHTML += `
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full"> search latency: ${latencyMs}s</span>
+        `;
         if (addToHist) addToHistory(query, k, nprobe);
-        // 2D passage list fix
-        // const passages = data?.results?.passages?.[0] || data?.passages?.[0];
         const passages = data?.results?.passages || data?.passages;
         if (Array.isArray(passages) && passages.length > 0) {
           const shownTexts = [];
           let shownCount = 0;
+          // const latencyNote = document.createElement('div');
+          // latencyNote.className = "text-sm text-gray-500 mb-1";
+          // latencyNote.innerText = `Searching took: ${latencyMs} seconds`;
+          // container.appendChild(latencyNote);
 
           for (const passage of passages) {
             const text = passage.text?.trim();
@@ -153,7 +166,6 @@
 
             const wordCount = text.split(/\s+/).filter(Boolean).length;
             if (wordCount < 10) continue;
-            // if (isRedundant(shownTexts, text)) continue;
 
             shownTexts.push(text);
             shownCount += 1;
@@ -167,7 +179,7 @@
             const centerText = passage.center_text?.trim();
 
             function highlightSmart(text, query) {
-              const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !['the','a','an','of','in','on','and','is','was'].includes(w));
+              const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
               const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
               return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
             }
@@ -229,23 +241,57 @@
       });
 
       const data = await response.json();
-
       const passages = data?.results?.passages?.[0];
-      const passage = Array.isArray(passages) ? passages[0] : "Not parsed correctly!";
+      const passage = Array.isArray(passages) ? passages[0] : null;
       if (!passage?.text) return;
 
       const parent = button.closest('.bg-white');
       const textDiv = parent.querySelector('.text-gray-900');
       const query = document.getElementById('queryInput').value.trim();
-      const queryWords = query.toLowerCase().split(/\s+/);
 
-      let highlighted = passage.text.replace(/\b(\w+)\b/gi, word =>
-        queryWords.includes(word.toLowerCase()) ? `<span class="rounded-highlight">${word}</span>` : word
+      const expandedRaw = passage.text.trim();
+
+      const stopwords = new Set(["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"]);
+      const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !stopwords.has(w));
+
+      let merged = expandedRaw;
+
+      // Step 1: Capture originalRaw from backend on first expand
+      if (offset === 1 && passage.original_text?.trim()) {
+        textDiv.dataset.originalRaw = passage.original_text.trim();
+      }
+
+      // Step 2: Always try to retrieve stored originalRaw
+      const originalRaw = textDiv.dataset.originalRaw;
+
+      // Step 3: If available, highlight and underline the original passage inside expanded
+      if (originalRaw) {
+        const highlightedOriginal = originalRaw.replace(/\b([\w-]+)\b/gi, word =>
+          queryWords.includes(word.toLowerCase())
+            ? `<span class="rounded-highlight">${word}</span>`
+            : word
+        );
+
+        const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        merged = expandedRaw.replace(
+          new RegExp(escapedOriginal, "g"),
+          `<span class="border-b-2 border-green-500">${highlightedOriginal}</span>`
+        );
+      }
+
+      // Step 4: Apply keyword-level highlight across final merged passage
+      const highlightedFull = merged.replace(/\b([\w-]+)\b/gi, word =>
+        queryWords.includes(word.toLowerCase())
+          ? `<span class="rounded-highlight">${word}</span>`
+          : word
       );
 
-      textDiv.innerHTML = highlighted;
-      button.dataset.offset = offset + 1;  // next round
+      textDiv.innerHTML = highlightedFull;
+      button.dataset.offset = offset + 1;
+
     }
+
 
     // Listen for Enter key to trigger search
     document.getElementById('queryInput').addEventListener('keydown', function(e) {

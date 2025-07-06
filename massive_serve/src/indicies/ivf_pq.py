@@ -363,6 +363,10 @@ class IVFPQIndexer(object):
             "position": position
         }
 
+        if offset == 1:
+            result["original_text"] = center_text.strip()
+
+
         print(f"[INFO] Return value with offset {offset} is: {result}")
 
         return result
@@ -448,8 +452,10 @@ class IVFPQIndexer(object):
                 print(f"[SEARCH] Insufficient results — increasing attempt_k")
                 K *= 10
         # print_mem_use("search after faiss index.search")
-        print(f"=====CHECKING FILTERED_PASSAGES=====\n")
-        print(filtered_passages)
+        # print(f"=====CHECKING FILTERED_PASSAGES=====\n")
+        # print(filtered_passages)
+        t1 = time.time()
+        search_delay = t1 - t0
         return all_scores.tolist(), filtered_passages
 
 
