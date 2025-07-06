@@ -7,6 +7,7 @@ import numpy as np
 import time
 import glob
 from tqdm import tqdm
+from rerank.exact_rerank import exact_rerank_topk
 import pdb
 import re
 import faiss
@@ -87,8 +88,8 @@ class IVFPQIndexer(object):
         self.num_keys_to_add_at_a_time = num_keys_to_add_at_a_time
         self.n_subquantizers = n_subquantizers
         self.code_size = code_size
-        self.position_array = np.load("position_array.npy")
-        self.filename_index_array = np.load("filename_index_array.npy")
+        self.position_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/position_array.npy")
+        self.filename_index_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
         self.filenames = self._load_filenames()
 
         print("Loading index...")
@@ -103,8 +104,8 @@ class IVFPQIndexer(object):
         if self.passage_dir is not None:
             #print_mem_use("load_index before loading position arrays")
             start_map = time.time()
-            self.position_array = np.load("position_array.npy")
-            self.filename_index_array = np.load("filename_index_array.npy")
+            self.position_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/position_array.npy")
+            self.filename_index_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
             self.filenames = self._load_filenames()
             end_map = time.time()
             print(f"Position map load time: {end_map - start_map:.2f} seconds")
@@ -286,29 +287,55 @@ class IVFPQIndexer(object):
             print(f"[WARN] Failed to read index_id={index_id} → {fname}:{pos} — {e}")
             return None
 
-    def get_retrieved_passages(self, all_indices):
-        all_passages = []
-        for query_indices in all_indices:
-            passages_per_query = []
-            for center_id in query_indices:
-                idx = int(center_id)
-                position = int(self.position_array[idx])
-                filename_idx = int(self.filename_index_array[idx])
-                filename = self.filenames[filename_idx]
-                center_text = self. read_text(idx)
+    # def get_retrieved_passages(self, all_indices):
+    #     all_passages = []
+    #     for query_indices in all_indices:
+    #         passages_per_query = []
+    #         for center_id in query_indices:
+    #             idx = int(center_id)
+    #             position = int(self.position_array[idx])
+    #             filename_idx = int(self.filename_index_array[idx])
+    #             filename = self.filenames[filename_idx]
+    #             center_text = self.read_text(idx)
+    #             passages_per_query.append({
+    #                 "text": center_text.strip(),
+    #                 "center_text": center_text,
+    #                 "source": filename.split('--')[0],
+    #                 "index_id": idx,
+    #                 "filename": filename,
+    #                 "position": position
+    #             })
+    #         all_passages.append(passages_per_query)
+    #     return all_passages
 
-                passages_per_query.append({
-                    "text": center_text.strip(),
-                    "center_text": center_text,
-                    "source": filename.split('--')[0],
-                    "index_id": idx,
-                    "filename": filename,
-                    "position": position
-                })
-            all_passages.append(passages_per_query)
-        return all_passages
+    def get_retrieved_passages(self, indices, raw_query=None):
+        """
+        Given a flat list of FAISS index IDs (for a single query), return structured passage dicts.
+        """
+        passages = []
+        for idx in indices:
+            idx = int(idx)  # ensure it's an int
+            position = int(self.position_array[idx])
+            filename_idx = int(self.filename_index_array[idx])
+            filename = self.filenames[filename_idx]
+            center_text = self.read_text(idx)
 
-    def expand_passage(self, idx, offset=1):
+            passage = {
+                "text": center_text.strip(),
+                "center_text": center_text,
+                "source": filename.split('--')[0],
+                "index_id": idx,
+                "filename": filename,
+                "position": position
+            }
+            if raw_query is not None:
+                passage["raw_query"] = raw_query
+            passages.append(passage)
+
+        return passages  # List[Dict]
+
+
+    def expand_passage(self, idx, offset):
         position = int(self.position_array[idx])
         fname_idx = int(self.filename_index_array[idx])
         filename = self.filenames[fname_idx]
@@ -328,14 +355,18 @@ class IVFPQIndexer(object):
                             text_blocks.append(neighbor_text)
 
         full_text = " ".join(text_blocks)
-        print(f"[INFO] Expanded text with offset {offset} is: {full_text}")
-        return {
+        result = {
             "text": full_text.strip(),
             "source": filename.split('--')[0],
             "index_id": idx,
             "filename": filename,
             "position": position
         }
+
+        print(f"[INFO] Return value with offset {offset} is: {result}")
+
+        return result
+
 
     def _get_passage(self, index_id):
         try:
@@ -360,14 +391,17 @@ class IVFPQIndexer(object):
             }
         except Exception as e:
             raise RuntimeError(f"Index {index_id} (pos={position}) failed: {e}")
+        
+    def is_redundant(self, existing_texts, new_text):
+        return any(t in new_text or new_text in t for t in existing_texts)
 
-    def search(self, query_embs, k, nprobe, expand_index_id=None, expand_offset=1):
+    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
 
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
             result = self.expand_passage(expand_index_id, offset=expand_offset)
             return None, [[result]]  
-        
+ 
         t0 = time.time()
         # print_mem_use("search: start")
         query_embs = query_embs.astype(np.float32)
@@ -376,40 +410,46 @@ class IVFPQIndexer(object):
             print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
 
         print(f"[IVFPQIndexer] Target k = {k}")
-        attempt_k = k
-        max_attempts = 5
+        K_ranges = [100, 500, 1000]
         filtered_passages = []
+        #TODO: Cache (without query, everyone is different)
 
-        for attempt in range(max_attempts):
-            print(f"[SEARCH] Attempt {attempt + 1}: trying FAISS top-{attempt_k}")
-            all_scores, all_indices = self.index.search(query_embs, attempt_k)
-            raw_passages = self.get_retrieved_passages(all_indices)
+        for attempt in range(len(K_ranges)):
+            K = K_ranges[attempt]
+            print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
+            all_scores, all_indices = self.index.search(query_embs, K)
 
-            filtered_passages = []
-            for per_query_passages in raw_passages:
-                unique = []
-                seen_texts = set()
-                for passage in per_query_passages:
-                    text = passage.get("text", "").strip()
-                    if len(text.split()) < 10:
-                        continue
-                    if text in seen_texts:
-                        continue
-                    seen_texts.add(text)
-                    unique.append(passage)
-                    if len(unique) >= k:
-                        break
-                filtered_passages.append(unique)
+            raw_passages = self.get_retrieved_passages(all_indices[0], raw_query=raw_query)
+                
+            # === [NEW] Perform reranking ===
+            if exact_rerank:
+                raw_passages = exact_rerank_topk(raw_passages)  
+                print("raw_passages length after exact search is {len(raw_passages)}")
+            unique = []
+            seen_texts = []
 
+            for passage in raw_passages:
+                text = passage.get("text", "").strip()
+                if len(text.split()) < 50:
+                    continue
+                if self.is_redundant(seen_texts, text):
+                    continue
+                seen_texts.append(text)
+                unique.append(passage)
+                if len(unique) >= k:
+                    break
+
+            filtered_passages = unique  # List[Dict]
             # Check if all queries got at least `k` valid results
-            if all(len(passages) >= k for passages in filtered_passages):
+            if len(filtered_passages) >= k:
                 print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
                 break
             else:
                 print(f"[SEARCH] Insufficient results — increasing attempt_k")
-                attempt_k *= 10
-
+                K *= 10
         # print_mem_use("search after faiss index.search")
+        print(f"=====CHECKING FILTERED_PASSAGES=====\n")
+        print(filtered_passages)
         return all_scores.tolist(), filtered_passages
 
 

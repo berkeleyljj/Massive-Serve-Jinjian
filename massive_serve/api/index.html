@@ -3,13 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAISS Demo</title>
+  <title>FAISS Demo UI</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f7f9fc;
+    }
+    .rounded-highlight {
+        background-color: #fff8b3;
+        border-radius: 0.5rem;
+        padding: 0 0.3em;
     }
   </style>
 </head>
@@ -43,9 +48,10 @@
       <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
     </select>
 
-    <!-- <label for="wordLimit" class="text-sm font-medium">word limit</label>
-    <input id="wordLimit" type="number" min="0" placeholder="e.g. 100"
-      class="border rounded-md p-1 text-sm w-24" /> -->
+    <!-- New -->
+    <label for="rerankToggle" class="text-sm font-medium">exact search</label>
+    <input id="rerankToggle" type="checkbox" class="form-checkbox h-4 w-4 text-teal-600">
+
 
     <input id="queryInput" type="text" placeholder="Ask your question..."
       class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
@@ -57,9 +63,9 @@
   <script>
     const historyList = [];
 
-    function isRedundant(existingTexts, newText) {
-      return existingTexts.some(t => t.includes(newText) || newText.includes(t));
-    }
+    // function isRedundant(existingTexts, newText) {
+    //   return existingTexts.some(t => t.includes(newText) || newText.includes(t));
+    // }
 
     function addToHistory(query, k, nprobe, wordLimit){
       const existingIndex = historyList.findIndex(item => item.text === query);
@@ -72,28 +78,11 @@
       ul.innerHTML = '';
       for (const item of historyList) {
         const li = document.createElement('li');
-        //li.textContent = item.text;
-        // Old
         li.innerHTML = `
           <div class="font-medium">${item.text}</div>
           <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
         `;
-        // Rename and delete addition
-        // li.innerHTML = `
-        //   <div class="flex justify-between items-center">
-        //     <div>
-        //       <div class="font-medium">${item.text}</div>
-        //       <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
-        //     </div>
-        //     <div class="relative">
-        //       <button class="text-gray-400 hover:text-gray-600 focus:outline-none" onclick="toggleMenu(this)">⋯</button>
-        //       <div class="menu hidden absolute right-0 mt-2 w-24 bg-white border border-gray-200 rounded-md shadow-md z-10 text-sm">
-        //         <button onclick="renameHistory('${item.text}')" class="block w-full text-left px-3 py-1 hover:bg-gray-100">Rename</button>
-        //         <button onclick="deleteHistory('${item.text}')" class="block w-full text-left px-3 py-1 text-red-600 hover:bg-gray-100">Delete</button>
-        //       </div>
-        //     </div>
-        //   </div>
-        // `;
+
         li.className = "cursor-pointer hover:text-teal-600";
         li.onclick = () => {
           document.getElementById('queryInput').value = item.text;
@@ -109,14 +98,14 @@
       const query = document.getElementById('queryInput').value.trim();
       const nprobe = document.getElementById('nprobe').value;
       const k = document.getElementById('k').value;
-      // const wordLimit = document.getElementById('wordLimit').value;
+      // New
+      const useRerank = document.getElementById('rerankToggle').checked;
       if (!query) return;
 
       const container = document.getElementById('results');
       container.innerHTML = '';
 
       const queryDisplay = document.createElement('div');
-      //queryDisplay.className = "text-gray-700 font-medium mb-2";
       queryDisplay.className = "text-gray-700 font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
       queryDisplay.innerHTML = `
         <div>Query: <span class="font-semibold">${query}</span></div>
@@ -133,15 +122,15 @@
       container.appendChild(loadingMsg);
 
       try {
-        const response = await fetch('http://192.222.50.67:55893/search', {
+        const response = await fetch('http://192.222.59.156:30888/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // body: JSON.stringify({ query, nprobe: parseInt(nprobe), n_docs: parseInt(k) })
+          
           body: JSON.stringify({
             query,
             nprobe: parseInt(nprobe),
-            n_docs: parseInt(k)
-            //word_limit: parseInt(document.getElementById('wordLimit').value) || undefined
+            n_docs: parseInt(k),
+            use_rerank: useRerank  // new field sent to backend
           })
         });
 
@@ -149,9 +138,11 @@
         container.innerHTML = '';
         container.appendChild(queryDisplay);
 
-        if (addToHist) addToHistory(query, k, nprobe);
 
-        const passages = data?.results?.passages?.[0] || data?.passages?.[0];
+        if (addToHist) addToHistory(query, k, nprobe);
+        // 2D passage list fix
+        // const passages = data?.results?.passages?.[0] || data?.passages?.[0];
+        const passages = data?.results?.passages || data?.passages;
         if (Array.isArray(passages) && passages.length > 0) {
           const shownTexts = [];
           let shownCount = 0;
@@ -162,7 +153,7 @@
 
             const wordCount = text.split(/\s+/).filter(Boolean).length;
             if (wordCount < 10) continue;
-            if (isRedundant(shownTexts, text)) continue;
+            // if (isRedundant(shownTexts, text)) continue;
 
             shownTexts.push(text);
             shownCount += 1;
@@ -175,29 +166,26 @@
             const fullText = passage.text?.trim() || "";
             const centerText = passage.center_text?.trim();
 
-            // Highlight query words first
-            let highlightedText = fullText.replace(/\b(\w+)\b/gi, word =>
-              queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
-            );
+            function highlightSmart(text, query) {
+              const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !['the','a','an','of','in','on','and','is','was'].includes(w));
+              const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
+              return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
+            }
+            let highlightedText = highlightSmart(fullText, query);
+
+            const initialOffset = 1;  // Expansion fix
 
             div.innerHTML = `
               <div class="text-gray-700 text-sm mb-2 italic">
                 #${shownCount} • Source: <span class="font-semibold">${source}</span>
               </div>
               <div class="text-gray-900 leading-relaxed mb-2">${highlightedText}</div>
-              <button class="text-sm text-blue-600 hover:underline" onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+              <button class="text-sm text-blue-600 hover:underline"
+                data-offset="${initialOffset}"
+                onclick="expandPassage(this, ${passage.index_id})">Show More</button>
             `;
 
-            // const source = passage.source || 'unknown';
-            // const queryWords = query.toLowerCase().split(/\s+/);
-            // const highlightedText = text.replace(/\b(\w+)\b/gi, word =>
-            //   queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
-            // );
 
-            // div.innerHTML = `
-            //   <div class="text-gray-700 text-sm mb-2 italic">#${shownCount} • Source: <span class="font-semibold">${source}</span></div>
-            //   <div class="text-gray-900 leading-relaxed">${highlightedText}</div>
-            // `;
             container.appendChild(div);
           }
 
@@ -230,7 +218,7 @@
     async function expandPassage(button, index_id) {
       const offset = parseInt(button.dataset.offset || "1");
 
-      const response = await fetch('http://192.222.50.67:55893/search', {
+      const response = await fetch('http://192.222.59.156:30888/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,8 +229,9 @@
       });
 
       const data = await response.json();
+
       const passages = data?.results?.passages?.[0];
-      const passage = Array.isArray(passages) ? passages[0] : null;
+      const passage = Array.isArray(passages) ? passages[0] : "Not parsed correctly!";
       if (!passage?.text) return;
 
       const parent = button.closest('.bg-white');
@@ -251,11 +240,10 @@
       const queryWords = query.toLowerCase().split(/\s+/);
 
       let highlighted = passage.text.replace(/\b(\w+)\b/gi, word =>
-        queryWords.includes(word.toLowerCase()) ? `<mark>${word}</mark>` : word
+        queryWords.includes(word.toLowerCase()) ? `<span class="rounded-highlight">${word}</span>` : word
       );
 
       textDiv.innerHTML = highlighted;
-
       button.dataset.offset = offset + 1;  // next round
     }
 
@@ -265,44 +253,6 @@
         submitQuery(true);
       }
     });
-
-    // function deleteHistory(queryText) {
-    //   const index = historyList.findIndex(item => item.text === queryText);
-    //   if (index !== -1) {
-    //     historyList.splice(index, 1);
-    //     addToHistory('', '', '', ''); 
-    //   }
-    // }
-
-    // function renameHistory(oldText) {
-    //   const newText = prompt("Rename query:", oldText);
-    //   if (newText && newText.trim() !== "") {
-    //     const index = historyList.findIndex(item => item.text === oldText);
-    //     if (index !== -1) {
-    //       historyList[index].text = newText.trim();
-    //       addToHistory('', '', '', ''); 
-    //     }
-    //   }
-    // }
-
-    // function toggleMenu(button) {
-    //   const allMenus = document.querySelectorAll('.menu');
-    //   allMenus.forEach(menu => {
-    //     if (!menu.contains(button.nextElementSibling)) {
-    //       menu.classList.add('hidden');
-    //     }
-    //   });
-
-    //   const menu = button.nextElementSibling;
-    //   menu.classList.toggle('hidden');
-    // }
-
-    // document.addEventListener('click', function(e) {
-    //   const isMenuButton = e.target.matches('button') && e.target.textContent === '⋯';
-    //   if (!isMenuButton) {
-    //     document.querySelectorAll('.menu').forEach(menu => menu.classList.add('hidden'));
-    //   }
-    // });
   </script>
 
   

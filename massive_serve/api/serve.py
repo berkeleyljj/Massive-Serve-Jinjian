@@ -11,6 +11,8 @@ import queue
 from flask import send_from_directory
 import psutil
 import time
+from colorama import Fore, Style
+
 startup_start = time.time()
 
 # Function to measure memory usage
@@ -52,7 +54,7 @@ CORS(app)
 
 
 class Item:
-    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, ) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
@@ -61,6 +63,7 @@ class Item:
         self.searched_results = None
         self.expand_index_id = expand_index_id
         self.expand_offset = expand_offset
+        self.exact_rerank = exact_rerank
     
     def get_dict(self,):
         dict_item = {
@@ -71,7 +74,8 @@ class Item:
             'nprobe': self.nprobe,
             'searched_results': self.searched_results,
             'expand_index_id' : self.expand_index_id,
-            'expand_offset' : self.expand_offset
+            'expand_offset' : self.expand_offset,
+            'exact_rerank' : self.exact_rerank,
         }
         return dict_item
 
@@ -93,7 +97,7 @@ class SearchQueue:
                 self.current_search = item
                 if item.nprobe is not None:
                     self.datastore.index.nprobe = item.nprobe
-                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset)
+                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset, item.exact_rerank)
                 self.current_search = None
                 return results
             else:
@@ -125,15 +129,18 @@ def search():
             expand_index_id = request.json.get('expand_index_id'),
             expand_offset = request.json.get('expand_offset', 1),
             domains=ds_cfg.domain_name,
+            exact_rerank = request.json.get('use_rerank', False),
         )
 
         # Perform the search synchronously with 600s timeout
-        timer = threading.Timer(600.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 60 seconds')))
+        timer = threading.Timer(600.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 600 seconds')))
         timer.start()
         try:
             results = search_queue.search(item)
             timer.cancel()
-            #print(results)
+
+            # print(results)
+
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
                 "query": item.query,
@@ -189,24 +196,35 @@ def find_free_port():
 
 def main():
     #port = find_free_port()
-    port = 55893
+    port = 30888
     server_id = socket.gethostname()
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}
     username = os.environ.get('USER') or os.environ.get('USERNAME') or getpass.getuser()
     endpoint = f'{username}@{server_id}:{port}/search'  # use actual username
     
-    # Create a beautiful banner
+
+    CYAN = Fore.CYAN
+    GREEN = Fore.GREEN
+    YELLOW = Fore.YELLOW
+    WHITE = Fore.WHITE
+    RESET = Style.RESET_ALL
+    box_width = 63  
+
+    def pad(label, value):
+        total_padding = box_width - len(label)
+        return label + value.ljust(total_padding)
+
     banner = f"""
-{CYAN}╔════════════════════════════════════════════════════════════╗
-║{GREEN}                    MASSIVE SERVE SERVER                    {CYAN}║
-╠════════════════════════════════════════════════════════════╣
-║{YELLOW} Domain: {WHITE}{domain_name:<45}{CYAN}║
-║{YELLOW} Server: {WHITE}{server_id:<45}{CYAN}║
-║{YELLOW} Port:   {WHITE}{port:<45}{CYAN}║
-║{YELLOW} Endpoint: {WHITE}{endpoint:<41}{CYAN}║
-╚════════════════════════════════════════════════════════════╝{RESET}
-"""
+    {CYAN}╔{'═' * box_width}╗
+    ║{GREEN}{'MASSIVE SERVE SERVER'.center(box_width)}{CYAN}║
+    ╠{'═' * box_width}╣
+    ║{YELLOW}{pad(" Domain:   ", WHITE + domain_name)}{CYAN}║
+    ║{YELLOW}{pad(" Server:   ", WHITE + server_id)}{CYAN}║
+    ║{YELLOW}{pad(" Port:     ", WHITE + str(port))}{CYAN}║
+    ║{YELLOW}{pad(" Endpoint: ", WHITE + endpoint)}{CYAN}║
+    ╚{'═' * box_width}╝{RESET}
+    """
     print(banner)
     
     # Print test request with colors
