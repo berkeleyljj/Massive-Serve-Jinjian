@@ -12,6 +12,8 @@ from flask import send_from_directory
 import psutil
 import time
 from colorama import Fore, Style
+import torch
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from gritlm import GritLM
 query_tokenizer  = None
 query_encoder = GritLM("GritLM/GritLM-7B", torch_dtype="auto", mode="embedding")
