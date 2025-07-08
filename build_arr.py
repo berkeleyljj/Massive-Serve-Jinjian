@@ -3,7 +3,7 @@ import json
 import numpy as np
 from tqdm import tqdm
 
-INPUT_DIR = "/home/ubuntu/Jinjian/retrieval-scaling/passages_full/passages"
+INPUT_DIR = "/home/ubuntu/Jinjian/massive-serve/built_index_full/passages"
 POSITION_ARRAY_PATH = "position_array.npy"
 FILENAME_INDEX_ARRAY_PATH = "filename_index_array.npy"
 FILENAME_LIST_PATH = "filename_list.npy"

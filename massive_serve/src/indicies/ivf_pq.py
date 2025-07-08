@@ -13,7 +13,7 @@ import re
 import faiss
 import numpy as np
 import torch
-
+from massive_serve.api.serve import query_encoder
 import psutil
 import os
 import logging
@@ -427,7 +427,7 @@ class IVFPQIndexer(object):
                 
             # === [NEW] Perform reranking ===
             if exact_rerank:
-                raw_passages = exact_rerank_topk(raw_passages)  
+                raw_passages = exact_rerank_topk(raw_passages, query_encoder)  
                 print("raw_passages length after exact search is {len(raw_passages)}")
             unique = []
             seen_texts = []

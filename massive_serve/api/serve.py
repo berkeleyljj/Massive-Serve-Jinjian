@@ -12,6 +12,11 @@ from flask import send_from_directory
 import psutil
 import time
 from colorama import Fore, Style
+from gritlm import GritLM
+query_tokenizer  = None
+query_encoder = GritLM("GritLM/GritLM-7B", torch_dtype="auto", mode="embedding")
+query_encoder.eval()
+query_encoder = query_encoder.to(device)
 
 startup_start = time.time()
 

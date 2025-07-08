@@ -63,12 +63,7 @@ def embed_queries(args, queries, model, cached_embeddings={}):
 
 
 # Defaults to memory reranking with live passages
-def exact_rerank_topk(raw_passages):
-    from gritlm import GritLM
-    query_tokenizer  = None
-    query_encoder = GritLM("GritLM/GritLM-7B", torch_dtype="auto", mode="embedding")
-    query_encoder.eval()
-    query_encoder = query_encoder.to(device)
+def exact_rerank_topk(raw_passages, query_encoder):
 
     logging.info(f"Doing exact reranking for {len(raw_passages)} total evaluation samples...")
     
