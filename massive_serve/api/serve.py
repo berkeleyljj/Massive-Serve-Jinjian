@@ -15,12 +15,13 @@ from colorama import Fore, Style
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from gritlm import GritLM
+
+
+startup_start = time.time()
 query_tokenizer  = None
 query_encoder = GritLM("GritLM/GritLM-7B", torch_dtype="auto", mode="embedding")
 query_encoder.eval()
 query_encoder = query_encoder.to(device)
-
-startup_start = time.time()
 
 # Function to measure memory usage
 def print_mem_use(label=""):

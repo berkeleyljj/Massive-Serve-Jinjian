@@ -411,7 +411,9 @@ class IVFPQIndexer(object):
         query_embs = query_embs.astype(np.float32)
         if nprobe is not None:
             self.index.nprobe = nprobe
-            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
+            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}\n")
+        else:
+            print("nprobe is set to None")
 
         print(f"[IVFPQIndexer] Target k = {k}")
         K_ranges = [100, 500, 1000]
@@ -428,7 +430,8 @@ class IVFPQIndexer(object):
             # === [NEW] Perform reranking ===
             if exact_rerank:
                 raw_passages = exact_rerank_topk(raw_passages, query_encoder)  
-                print("raw_passages length after exact search is {len(raw_passages)}")
+                print("===== NOTE =====\n")
+                print("Using Exact Search\n")
             unique = []
             seen_texts = []
 
