@@ -396,8 +396,12 @@ class IVFPQIndexer(object):
         except Exception as e:
             raise RuntimeError(f"Index {index_id} (pos={position}) failed: {e}")
         
+    # def is_redundant(self, existing_texts, new_text):
+    #     return any(t in new_text or new_text in t for t in existing_texts)
+
+    # less strict
     def is_redundant(self, existing_texts, new_text):
-        return any(t in new_text or new_text in t for t in existing_texts)
+        return new_text in existing_texts
 
     def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
 
@@ -416,7 +420,7 @@ class IVFPQIndexer(object):
             print("nprobe is set to None")
 
         print(f"[IVFPQIndexer] Target k = {k}")
-        K_ranges = [100, 500, 1000]
+        K_ranges = [1000]
         filtered_passages = []
         #TODO: Cache (without query, everyone is different)
 
@@ -431,13 +435,13 @@ class IVFPQIndexer(object):
             if exact_rerank:
                 raw_passages = exact_rerank_topk(raw_passages, query_encoder)  
                 print("===== NOTE =====\n")
-                print("Using Exact Search\n")
+                print("Used Exact Search\n")
             unique = []
             seen_texts = []
 
             for passage in raw_passages:
                 text = passage.get("text", "").strip()
-                if len(text.split()) < 50:
+                if len(text.split()) < 20:
                     continue
                 if self.is_redundant(seen_texts, text):
                     continue
@@ -452,8 +456,9 @@ class IVFPQIndexer(object):
                 print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
                 break
             else:
-                print(f"[SEARCH] Insufficient results — increasing attempt_k")
-                K *= 10
+                print(f"[ERROR] Insufficient results — STOPPING")
+                raise RuntimeError(f"Search failed to return at least {k} valid passages (got {len(filtered_passages)})")
+
         # print_mem_use("search after faiss index.search")
         # print(f"=====CHECKING FILTERED_PASSAGES=====\n")
         # print(filtered_passages)
