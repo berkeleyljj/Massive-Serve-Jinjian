@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAISS Demo UI</title>
+  <title>Compact-DS Scope</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -30,7 +30,7 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">FAISS Demo</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Scope</h1>
     </header>
 
     <!-- Results Area -->
@@ -48,24 +48,29 @@
       <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
     </select>
 
-    <!-- New -->
+    <!-- Exact Search button -->
     <label for="rerankToggle" class="text-sm font-medium">exact search</label>
     <input id="rerankToggle" type="checkbox" class="form-checkbox h-4 w-4 text-teal-600">
-
 
     <input id="queryInput" type="text" placeholder="Ask your question..."
       class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
 
     <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
+
+    <div class="flex items-center gap-2">
+      <label class="text-sm font-medium">Server:</label>
+      <select id="backendPortSelect" class="border rounded-md p-1 text-sm">
+        <option value="30888" selected>Dev</option>
+        <option value="30999">Stable</option>
+      </select>
+    </div>    
+
+
   </div>
 
   <!-- JavaScript -->
   <script>
     const historyList = [];
-
-    // function isRedundant(existingTexts, newText) {
-    //   return existingTexts.some(t => t.includes(newText) || newText.includes(t));
-    // }
 
     function addToHistory(query, k, nprobe, wordLimit){
       const existingIndex = historyList.findIndex(item => item.text === query);
@@ -94,7 +99,22 @@
       }
     }
 
+    function refreshHighlights() {
+      const enableHighlight = document.getElementById('highlightToggle').checked;
+      const stopwords = new Set(["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"]);
+      const queryWords = currentQuery.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !stopwords.has(w));
+      const regex = new RegExp(`\\b(${queryWords.join("|")})\\b`, "gi");
+
+      for (const { divRef, rawText } of cachedPassages) {
+        divRef.innerHTML = enableHighlight
+          ? rawText.replace(regex, match => `<span class="rounded-highlight">${match}</span>`)
+          : rawText;
+      }
+    }
+
+
     async function submitQuery(addToHist) {
+
       const query = document.getElementById('queryInput').value.trim();
       const nprobe = document.getElementById('nprobe').value;
       const k = document.getElementById('k').value;
@@ -117,7 +137,6 @@
         </div>
       `;
 
-
       container.appendChild(queryDisplay);
 
 
@@ -128,10 +147,10 @@
 
       try {
         const start_time = performance.now()
-        const response = await fetch('http://192.222.59.156:30888/search', {
+        const selectedPort = document.getElementById('backendPortSelect').value;
+        const response = await fetch(`http://192.222.59.156:${selectedPort}/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          
           body: JSON.stringify({
             query,
             nprobe: parseInt(nprobe),
@@ -151,7 +170,10 @@
           <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full"> search latency: ${latencyMs}s</span>
         `;
         if (addToHist) addToHistory(query, k, nprobe);
-        const passages = data?.results?.passages || data?.passages;
+        // const passages = data?.results?.passages || data?.passages;
+        const batchedPassages = data?.results?.passages || data?.passages;
+        const passages = Array.isArray(batchedPassages?.[0]) ? batchedPassages[0] : batchedPassages;
+
         if (Array.isArray(passages) && passages.length > 0) {
           const shownTexts = [];
           let shownCount = 0;
@@ -165,7 +187,7 @@
             if (!text) continue;
 
             const wordCount = text.split(/\s+/).filter(Boolean).length;
-            if (wordCount < 10) continue;
+            if (wordCount < 5) continue;
 
             shownTexts.push(text);
             shownCount += 1;
@@ -178,12 +200,13 @@
             const fullText = passage.text?.trim() || "";
             const centerText = passage.center_text?.trim();
 
-            function highlightSmart(text, query) {
-              const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
-              const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
-              return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
-            }
-            let highlightedText = highlightSmart(fullText, query);
+            // function highlightSmart(text, query) {
+            //   const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
+            //   const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
+            //   return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
+            // }
+            // let highlightedText = highlightSmart(fullText, query);
+            // Only highlight query words when toggled button
 
             const initialOffset = 1;  // Expansion fix
 
@@ -191,10 +214,18 @@
               <div class="text-gray-700 text-sm mb-2 italic">
                 #${shownCount} • Source: <span class="font-semibold">${source}</span>
               </div>
-              <div class="text-gray-900 leading-relaxed mb-2">${highlightedText}</div>
-              <button class="text-sm text-blue-600 hover:underline"
-                data-offset="${initialOffset}"
-                onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+              <div class="text-gray-900 leading-relaxed mb-2"
+                  data-original-raw="${fullText.replace(/"/g, '&quot;')}"
+                  data-expanded-raw="">
+                ${fullText}
+              </div>
+              <div class="flex gap-4">
+                <button class="text-sm text-blue-600 hover:underline"
+                  data-offset="${initialOffset}"
+                  onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+                <button class="text-sm text-blue-600 hover:underline hidden"
+                  onclick="collapsePassage(this)">Collapse</button>
+              </div>
             `;
 
 
@@ -247,51 +278,58 @@
 
       const parent = button.closest('.bg-white');
       const textDiv = parent.querySelector('.text-gray-900');
-      const query = document.getElementById('queryInput').value.trim();
 
       const expandedRaw = passage.text.trim();
 
-      const stopwords = new Set(["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"]);
-      const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !stopwords.has(w));
-
-      let merged = expandedRaw;
-
-      // Step 1: Capture originalRaw from backend on first expand
+      // Store original text once
       if (offset === 1 && passage.original_text?.trim()) {
         textDiv.dataset.originalRaw = passage.original_text.trim();
       }
 
-      // Step 2: Always try to retrieve stored originalRaw
       const originalRaw = textDiv.dataset.originalRaw;
+      let merged = expandedRaw;
 
-      // Step 3: If available, highlight and underline the original passage inside expanded
+      // Highlight original inside expanded with green underline
       if (originalRaw) {
-        const highlightedOriginal = originalRaw.replace(/\b([\w-]+)\b/gi, word =>
-          queryWords.includes(word.toLowerCase())
-            ? `<span class="rounded-highlight">${word}</span>`
-            : word
-        );
-
         const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
         merged = expandedRaw.replace(
           new RegExp(escapedOriginal, "g"),
-          `<span class="border-b-2 border-green-500">${highlightedOriginal}</span>`
+          `<span class="border-b-2 border-green-500">${originalRaw}</span>`
         );
       }
 
-      // Step 4: Apply keyword-level highlight across final merged passage
-      const highlightedFull = merged.replace(/\b([\w-]+)\b/gi, word =>
-        queryWords.includes(word.toLowerCase())
-          ? `<span class="rounded-highlight">${word}</span>`
-          : word
-      );
+      // Replace the text content
+      textDiv.innerHTML = merged;
+      textDiv.dataset.expandedRaw = merged;
 
-      textDiv.innerHTML = highlightedFull;
+      // Update offset for next "Show More"
       button.dataset.offset = offset + 1;
 
+      // Reveal collapse button
+      const collapseBtn = parent.querySelectorAll("button")[1];
+      collapseBtn.classList.remove("hidden");
     }
 
+
+    function collapsePassage(button) {
+      const parent = button.closest('.bg-white');
+      const textDiv = parent.querySelector('.text-gray-900');
+      const originalRaw = textDiv.dataset.originalRaw;
+
+      if (!originalRaw) return;
+
+      textDiv.innerHTML = originalRaw;
+
+      // Reset the Show More button's offset
+      const showMoreBtn = parent.querySelector('button[data-offset]');
+      if (showMoreBtn) {
+        showMoreBtn.dataset.offset = 1;
+      }
+
+      // Toggle buttons
+      const buttons = parent.querySelectorAll("button");
+      buttons[1].classList.add("hidden");     // "Collapse"
+    }
 
     // Listen for Enter key to trigger search
     document.getElementById('queryInput').addEventListener('keydown', function(e) {
@@ -299,6 +337,8 @@
         submitQuery(true);
       }
     });
+
+    document.getElementById('highlightToggle').addEventListener('change', refreshHighlights);
   </script>
 
   

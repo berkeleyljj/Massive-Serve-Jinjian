@@ -130,8 +130,14 @@ threading.Thread(target=search_queue.process_queue, daemon=True).start()
 @app.route('/search', methods=['POST'])
 def search():
     try:
+        if "queries" in request.json:
+            print(f"[Batched Search] Received {len(request.json['queries'])} queries.")
+            query_input = request.json["queries"]
+        else:
+            print("Processing a single query at once. ")
+            query_input=request.json['query']
         item = Item(
-            query=request.json['query'],
+            query=query_input,
             n_docs=request.json.get('n_docs', 1),
             nprobe=request.json.get('nprobe', None),
             expand_index_id = request.json.get('expand_index_id'),
@@ -147,11 +153,12 @@ def search():
             results = search_queue.search(item)
             timer.cancel()
 
-            # print(results)
+            # print(" ========= DEBUGGGGGG ======= Structured results from search route:")
+            # print(json.dumps(results, indent=2, ensure_ascii=False))
 
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
-                "query": item.query,
+                "query": query_input,
                 "n_docs": item.n_docs,
                 "nprobe": item.nprobe,
                 "expand_index_id" : request.json.get('expand_index_id'),
@@ -169,7 +176,7 @@ def search():
         tb_lines = traceback.format_exception(e.__class__, e, e.__traceback__)
         error_message = f"An error occurred: {str(e)}\n{''.join(tb_lines)}"
         return jsonify({"message": error_message}), 500
-
+    
 @app.route('/current_search')
 def current_search():
     with search_queue.lock:
@@ -204,7 +211,7 @@ def find_free_port():
 
 def main():
     #port = find_free_port()
-    port = 30888
+    port = int(os.environ.get('MASSIVE_SERVE_PORT', 30888))
     server_id = socket.gethostname()
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}

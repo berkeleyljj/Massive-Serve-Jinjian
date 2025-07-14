@@ -50,10 +50,28 @@ class DatastoreAPI():
         print("✅ START OF search()")
         query_embedding = self.embed_query(query)
         searched_scores, searched_passages  = self.index.search(query, query_embedding, n_docs, nprobe, expand_index_id, expand_offset, exact_rerank)
-        print("✅ END OF search()")
+        # for i, group in enumerate(searched_passages[:2]):
+        #     print(f"  → Query {i}: type={type(group)}")
+
+        #     if isinstance(group, list):
+        #         for j, p in enumerate(group[:2]):
+        #             print(f"    • Passage {j}: keys = {list(p.keys())}")
+        #             print(f"      center_text (truncated): {p.get('center_text', '')[:80]}...")
+        #     elif isinstance(group, dict):
+        #         for j, (k, p) in enumerate(list(group.items())[:2]):
+        #             print(f"    • Key {j}: key={k}, value_type={type(p)}")
+        #             if isinstance(p, dict):
+        #                 print(f"      keys: {list(p.keys())}")
+        #                 print(f"      center_text (truncated): {p.get('center_text', '')[:80]}...")
+        #             else:
+        #                 print(f"      value preview: {str(p)[:80]}...")
+        #     else:
+        #         print(f"    ⚠️ Unexpected type: {type(group)}")
+
+        # print("✅ END OF search()\n")
         results = {'scores': searched_scores, 'passages': searched_passages}
         return results
-    
+
     def embed_query(self, query):
         if isinstance(query, str):
             query_embedding = embed_queries(self.cfg, [query], self.query_encoder, self.query_tokenizer, self.cfg.query_encoder)

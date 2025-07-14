@@ -396,12 +396,12 @@ class IVFPQIndexer(object):
         except Exception as e:
             raise RuntimeError(f"Index {index_id} (pos={position}) failed: {e}")
         
-    # def is_redundant(self, existing_texts, new_text):
-    #     return any(t in new_text or new_text in t for t in existing_texts)
+    def is_redundant(self, existing_texts, new_text):
+        return any(t in new_text or new_text in t for t in existing_texts)
 
     # less strict
-    def is_redundant(self, existing_texts, new_text):
-        return new_text in existing_texts
+    # def is_redundant(self, existing_texts, new_text):
+    #     return new_text in existing_texts
 
     def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
 
@@ -409,62 +409,86 @@ class IVFPQIndexer(object):
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
             result = self.expand_passage(expand_index_id, offset=expand_offset)
             return None, [[result]]  
+
+        # Normalize inputs to batch
+        if isinstance(raw_query, str):
+            print("Raw query is a string!")
+            raw_queries = [raw_query]
+        else:
+            print(f"length of queries are {len(raw_query)}")
+            raw_queries = raw_query
+
  
         t0 = time.time()
-        # print_mem_use("search: start")
         query_embs = query_embs.astype(np.float32)
         if nprobe is not None:
             self.index.nprobe = nprobe
-            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}\n")
+            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
         else:
             print("nprobe is set to None")
 
-        print(f"[IVFPQIndexer] Target k = {k}")
-        K_ranges = [1000]
-        filtered_passages = []
-        #TODO: Cache (without query, everyone is different)
+        
+        all_final_scores = []
+        all_final_passages = []
 
-        for attempt in range(len(K_ranges)):
-            K = K_ranges[attempt]
-            print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
-            all_scores, all_indices = self.index.search(query_embs, K)
+        for i, (q_text, q_emb) in enumerate(zip(raw_queries, query_embs)):
+            print(f"\n=== [QUERY {i}] ===")
+            print(f"[IVFPQIndexer] Target k = {k}")
+            filtered_passages = []
+            q_emb = q_emb.reshape(1, -1)
 
-            raw_passages = self.get_retrieved_passages(all_indices[0], raw_query=raw_query)
-                
-            # === [NEW] Perform reranking ===
-            if exact_rerank:
-                raw_passages = exact_rerank_topk(raw_passages, query_encoder)  
-                print("===== NOTE =====\n")
-                print("Used Exact Search\n")
-            unique = []
-            seen_texts = []
+            K_ranges = [100, 500, 1000]
+            for attempt in range(len(K_ranges)):
+                K = K_ranges[attempt]
+                print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
+                all_scores, all_indices = self.index.search(q_emb, K)
 
-            for passage in raw_passages:
-                text = passage.get("text", "").strip()
-                if len(text.split()) < 20:
-                    continue
-                if self.is_redundant(seen_texts, text):
-                    continue
-                seen_texts.append(text)
-                unique.append(passage)
-                if len(unique) >= k:
+                raw_passages = self.get_retrieved_passages(all_indices[0], raw_query=q_text)
+
+                if exact_rerank:
+                    raw_passages = exact_rerank_topk(raw_passages, query_encoder)
+                    print("[SEARCH] Used Exact Rerank")
+
+                unique = []
+                seen_texts = []
+
+                for passage in raw_passages:
+                    text = passage.get("text", "").strip()
+                    if len(text.split()) < 50:
+                        continue
+                    if self.is_redundant(seen_texts, text):
+                        continue
+                    seen_texts.append(text)
+                    unique.append(passage)
+                    if len(unique) >= k:
+                        break
+
+                filtered_passages = unique
+                if len(filtered_passages) >= k:
+                    print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
+                    print(filtered_passages)
                     break
+                else:
+                    print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
 
-            filtered_passages = unique  # List[Dict]
-            # Check if all queries got at least `k` valid results
-            if len(filtered_passages) >= k:
-                print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
-                break
-            else:
-                print(f"[ERROR] Insufficient results — STOPPING")
-                raise RuntimeError(f"Search failed to return at least {k} valid passages (got {len(filtered_passages)})")
+            if len(filtered_passages) < k:
+                raise RuntimeError(f"[QUERY {i}] Got only {len(filtered_passages)} valid passages after {len(K_ranges)} attempts (wanted {k})")
+
+            all_final_scores.append(all_scores[0][:len(filtered_passages)])
+            all_final_passages.append(filtered_passages)
+
 
         # print_mem_use("search after faiss index.search")
         # print(f"=====CHECKING FILTERED_PASSAGES=====\n")
         # print(filtered_passages)
         t1 = time.time()
         search_delay = t1 - t0
-        return all_scores.tolist(), filtered_passages
+        print(f"[SEARCH] Completed batch of {len(raw_queries)} in {search_delay:.2f}s")
+        # Confirm return structure
+        print(f"[DEBUG] Returning scores of shape: {len(all_final_scores)} x {len(all_final_scores[0]) if all_final_scores else 0}")
+        print(f"[DEBUG] Returning passages of shape: {len(all_final_passages)} x {len(all_final_passages[0]) if all_final_passages else 0}")
+
+        return all_scores.tolist(), all_final_passages
 
 
 
