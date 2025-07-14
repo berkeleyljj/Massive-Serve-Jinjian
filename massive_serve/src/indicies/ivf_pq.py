@@ -94,7 +94,12 @@ class IVFPQIndexer(object):
 
         print("Loading index...")
         start_idx = time.time()
-        self.index = faiss.read_index(index_path)
+        try:
+            self.index = faiss.read_index(index_path, faiss.IO_FLAG_MMAP | faiss.IO_FLAG_READ_ONLY)
+            print("[IVFPQIndexer] Loaded FAISS index with mmap (on-disk)")
+        except Exception as e:
+            print(f"[IVFPQIndexer] mmap failed ({e}), falling back to in-memory load")
+            self.index = faiss.read_index(index_path)
         end_idx = time.time()
         #print_mem_use("load_index after faiss.read_index")
         self.index.nprobe = self.probe
@@ -466,7 +471,7 @@ class IVFPQIndexer(object):
                 filtered_passages = unique
                 if len(filtered_passages) >= k:
                     print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
-                    print(filtered_passages)
+                    # print(filtered_passages)
                     break
                 else:
                     print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
