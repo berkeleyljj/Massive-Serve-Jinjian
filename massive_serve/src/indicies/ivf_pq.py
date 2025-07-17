@@ -94,12 +94,12 @@ class IVFPQIndexer(object):
 
         print("Loading index...")
         start_idx = time.time()
-        try:
-            self.index = faiss.read_index(index_path, faiss.IO_FLAG_MMAP | faiss.IO_FLAG_READ_ONLY)
-            print("[IVFPQIndexer] Loaded FAISS index with mmap (on-disk)")
-        except Exception as e:
-            print(f"[IVFPQIndexer] mmap failed ({e}), falling back to in-memory load")
-            self.index = faiss.read_index(index_path)
+        # try:
+        #     self.index = faiss.read_index(index_path, faiss.IO_FLAG_MMAP | faiss.IO_FLAG_READ_ONLY)
+        #     print("[IVFPQIndexer] Loaded FAISS index with mmap (on-disk)")
+        # except Exception as e:
+        # print(f"[IVFPQIndexer] mmap failed ({e}), falling back to in-memory load")
+        self.index = faiss.read_index(index_path)
         end_idx = time.time()
         #print_mem_use("load_index after faiss.read_index")
         self.index.nprobe = self.probe
@@ -287,10 +287,12 @@ class IVFPQIndexer(object):
             with open(file_path, 'r') as f:
                 f.seek(pos)
                 line = f.readline()
-                return json.loads(line).get("text", "")
+                parsed = json.loads(line)
+                return parsed.get("text", ""), parsed.get("id", None)
+
         except Exception as e:
             print(f"[WARN] Failed to read index_id={index_id} → {fname}:{pos} — {e}")
-            return None
+            return None, None
 
     # def get_retrieved_passages(self, all_indices):
     #     all_passages = []
@@ -323,9 +325,12 @@ class IVFPQIndexer(object):
             position = int(self.position_array[idx])
             filename_idx = int(self.filename_index_array[idx])
             filename = self.filenames[filename_idx]
-            center_text = self.read_text(idx)
+            center_text, passage_id = self.read_text(idx)
+            if passage_id is None:
+                print("[ERROR] Failed to parse passage id.")
 
             passage = {
+                "passage_id": passage_id,
                 "text": center_text.strip(),
                 "center_text": center_text,
                 "source": filename.split('--')[0],
@@ -481,11 +486,7 @@ class IVFPQIndexer(object):
 
             all_final_scores.append(all_scores[0][:len(filtered_passages)])
             all_final_passages.append(filtered_passages)
-
-
-        # print_mem_use("search after faiss index.search")
-        # print(f"=====CHECKING FILTERED_PASSAGES=====\n")
-        # print(filtered_passages)
+            
         t1 = time.time()
         search_delay = t1 - t0
         print(f"[SEARCH] Completed batch of {len(raw_queries)} in {search_delay:.2f}s")
