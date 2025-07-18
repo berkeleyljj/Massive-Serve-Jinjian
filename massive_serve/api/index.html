@@ -30,7 +30,7 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Scope</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Scope (Stable Version)</h1>
     </header>
 
     <!-- Results Area -->
@@ -56,14 +56,6 @@
       class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
 
     <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
-
-    <div class="flex items-center gap-2">
-      <label class="text-sm font-medium">Server:</label>
-      <select id="backendPortSelect" class="border rounded-md p-1 text-sm">
-        <option value="30888" selected>Dev</option>
-        <option value="30999">Stable</option>
-      </select>
-    </div>    
 
 
   </div>
@@ -147,7 +139,7 @@
 
       try {
         const start_time = performance.now()
-        const selectedPort = document.getElementById('backendPortSelect').value;
+        const selectedPort = 30999
         const response = await fetch(`http://192.222.59.156:${selectedPort}/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

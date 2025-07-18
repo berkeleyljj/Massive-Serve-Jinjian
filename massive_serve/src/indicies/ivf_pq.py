@@ -18,6 +18,7 @@ import psutil
 import os
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -413,12 +414,13 @@ class IVFPQIndexer(object):
     # def is_redundant(self, existing_texts, new_text):
     #     return new_text in existing_texts
 
-    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
+    # No batch search
+    def search_nobatch(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
 
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
             result = self.expand_passage(expand_index_id, offset=expand_offset)
-            return None, [[result]]  
+            return None, [[result]]
 
         # Normalize inputs to batch
         if isinstance(raw_query, str):
@@ -428,7 +430,6 @@ class IVFPQIndexer(object):
             print(f"length of queries are {len(raw_query)}")
             raw_queries = raw_query
 
- 
         t0 = time.time()
         query_embs = query_embs.astype(np.float32)
         if nprobe is not None:
@@ -437,31 +438,30 @@ class IVFPQIndexer(object):
         else:
             print("nprobe is set to None")
 
-        
+        K_ranges = [100, 500, 1000]
         all_final_scores = []
         all_final_passages = []
 
-        for i, (q_text, q_emb) in enumerate(zip(raw_queries, query_embs)):
-            print(f"\n=== [QUERY {i}] ===")
-            print(f"[IVFPQIndexer] Target k = {k}")
-            filtered_passages = []
-            q_emb = q_emb.reshape(1, -1)
+        for attempt in range(len(K_ranges)):
+            K = K_ranges[attempt]
+            print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
+            all_scores, all_indices = self.index.search(query_embs, K)  # batched search
 
-            K_ranges = [100, 500, 1000]
-            for attempt in range(len(K_ranges)):
-                K = K_ranges[attempt]
-                print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
-                all_scores, all_indices = self.index.search(q_emb, K)
-
-                raw_passages = self.get_retrieved_passages(all_indices[0], raw_query=q_text)
+            all_batch_passages = []
+            rerank_failed = False
+            for i, (q_text, top_indices) in enumerate(zip(raw_queries, all_indices)):
+                raw_passages = self.get_retrieved_passages(top_indices, raw_query=q_text)
 
                 if exact_rerank:
-                    raw_passages = exact_rerank_topk(raw_passages, query_encoder)
-                    print("[SEARCH] Used Exact Rerank")
+                    try:
+                        raw_passages = exact_rerank_topk(raw_passages, query_encoder)
+                        print(f"[SEARCH] [QUERY {i}] Used Exact Rerank")
+                    except Exception as e:
+                        print(f"[SEARCH] [QUERY {i}] Rerank failed: {e}")
+                        rerank_failed = True
 
                 unique = []
                 seen_texts = []
-
                 for passage in raw_passages:
                     text = passage.get("text", "").strip()
                     if len(text.split()) < 50:
@@ -473,28 +473,112 @@ class IVFPQIndexer(object):
                     if len(unique) >= k:
                         break
 
-                filtered_passages = unique
-                if len(filtered_passages) >= k:
-                    print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
-                    # print(filtered_passages)
-                    break
-                else:
-                    print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
+                all_batch_passages.append(unique)
 
-            if len(filtered_passages) < k:
-                raise RuntimeError(f"[QUERY {i}] Got only {len(filtered_passages)} valid passages after {len(K_ranges)} attempts (wanted {k})")
+            if all(len(passages) >= k for passages in all_batch_passages):
+                print(f"[SEARCH] Succeeded on attempt {attempt + 1} with passages {all_final_passages}")
+                all_final_passages = all_batch_passages
+                all_final_scores = [s[:len(p)] for s, p in zip(all_scores, all_batch_passages)]
+                break
+            else:
+                print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
 
-            all_final_scores.append(all_scores[0][:len(filtered_passages)])
-            all_final_passages.append(filtered_passages)
-            
+        if any(len(p) < k for p in all_final_passages):
+            print(f"[DEBUG] not enough k")
+            raise RuntimeError(f"One or more queries returned fewer than {k} valid passages after {len(K_ranges)} attempts")
+
         t1 = time.time()
         search_delay = t1 - t0
         print(f"[SEARCH] Completed batch of {len(raw_queries)} in {search_delay:.2f}s")
-        # Confirm return structure
         print(f"[DEBUG] Returning scores of shape: {len(all_final_scores)} x {len(all_final_scores[0]) if all_final_scores else 0}")
         print(f"[DEBUG] Returning passages of shape: {len(all_final_passages)} x {len(all_final_passages[0]) if all_final_passages else 0}")
 
-        return all_scores.tolist(), all_final_passages
+        return all_final_scores, all_final_passages
+
+    # Batched searchfrom concurrent.futures import ThreadPoolExecutor
+    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
+        if expand_index_id is not None:
+            print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
+            result = self.expand_passage(expand_index_id, offset=expand_offset)
+            return None, [[result]]
+
+        if isinstance(raw_query, str):
+            raw_queries = [raw_query]
+        else:
+            raw_queries = raw_query
+
+        t0 = time.time()
+        query_embs = query_embs.astype(np.float32)
+        if nprobe is not None:
+            self.index.nprobe = nprobe
+            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
+        else:
+            print("nprobe is set to None")
+
+        K_ranges = [100, 500, 1000]
+        all_final_scores = []
+        all_final_passages = []
+
+        for attempt in range(len(K_ranges)):
+            K = K_ranges[attempt]
+            print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
+            all_scores, all_indices = self.index.search(query_embs, K)
+
+            # === Parallel get_retrieved_passages ===
+            def retrieve_for_query(i):
+                q_text = raw_queries[i]
+                top_indices = all_indices[i]
+                return self.get_retrieved_passages(top_indices, raw_query=q_text)
+
+            with ThreadPoolExecutor() as executor:
+                all_raw_passages = list(executor.map(retrieve_for_query, range(len(raw_queries))))
+
+            all_batch_passages = []
+            rerank_failed = False
+
+            for i, raw_passages in enumerate(all_raw_passages):
+                if exact_rerank:
+                    try:
+                        raw_passages = exact_rerank_topk(raw_passages, query_encoder)
+                        print(f"[SEARCH] [QUERY {i}] Used Exact Rerank")
+                    except Exception as e:
+                        print(f"[SEARCH] [QUERY {i}] Rerank failed: {e}")
+                        rerank_failed = True
+
+                unique = []
+                seen_texts = []
+                for passage in raw_passages:
+                    text = passage.get("text", "").strip()
+                    if len(text.split()) < 50:
+                        continue
+                    if self.is_redundant(seen_texts, text):
+                        continue
+                    seen_texts.append(text)
+                    unique.append(passage)
+                    if len(unique) >= k:
+                        break
+
+                all_batch_passages.append(unique)
+
+            if all(len(p) >= k for p in all_batch_passages):
+                print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
+                all_final_passages = all_batch_passages
+                all_final_scores = [s[:len(p)] for s, p in zip(all_scores, all_batch_passages)]
+                break
+            else:
+                print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
+
+        if any(len(p) < k for p in all_final_passages):
+            raise RuntimeError(f"One or more queries returned fewer than {k} valid passages after {len(K_ranges)} attempts")
+
+        t1 = time.time()
+        print(f"[SEARCH] Completed batch of {len(raw_queries)} in {t1 - t0:.2f}s")
+        print(f"[DEBUG] Returning scores of shape: {len(all_final_scores)} x {len(all_final_scores[0]) if all_final_scores else 0}")
+        print(f"[DEBUG] Returning passages of shape: {len(all_final_passages)} x {len(all_final_passages[0]) if all_final_passages else 0}")
+
+        return all_final_scores, all_final_passages
+
+
 
 
 

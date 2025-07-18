@@ -80,7 +80,6 @@ def embed_passages(args, raw_query, texts, passage_ids, model):
             embeddings[original_text] = emb
             if pid is not None:
                 save_embedding_to_cache(pid, emb)  # Cache only if it's a passage embedding, not the query -- query has None as pid to differ
-    print(f"==============  DEBUG ==============\n length of embeddings is {len(embeddings)}")
     return embeddings
 
 
