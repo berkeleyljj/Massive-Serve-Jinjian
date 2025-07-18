@@ -88,15 +88,14 @@ class IVFPQIndexer(object):
         self.num_keys_to_add_at_a_time = num_keys_to_add_at_a_time
         self.n_subquantizers = n_subquantizers
         self.code_size = code_size
-        self.position_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/position_array.npy")
-        self.filename_index_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
+        self.position_array = np.load("/home/ubuntu/minlab/Jinjian/massive-serve/built_index_full/position_array.npy")
+        self.filename_index_array = np.load("/home/ubuntu/minlab/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
         self.filenames = self._load_filenames()
 
         print("Loading index...")
         start_idx = time.time()
         self.index = faiss.read_index(index_path)
         end_idx = time.time()
-        #print_mem_use("load_index after faiss.read_index")
         self.index.nprobe = self.probe
         print(f"[load_index] Set nprobe to {self.probe}")
         print(f"Index load time: {end_idx - start_idx:.2f} seconds")
@@ -104,8 +103,8 @@ class IVFPQIndexer(object):
         if self.passage_dir is not None:
             #print_mem_use("load_index before loading position arrays")
             start_map = time.time()
-            self.position_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/position_array.npy")
-            self.filename_index_array = np.load("/home/ubuntu/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
+            self.position_array = np.load("/home/ubuntu/minlab/Jinjian/massive-serve/built_index_full/position_array.npy")
+            self.filename_index_array = np.load("/home/ubuntu/minlab/Jinjian/massive-serve/built_index_full/filename_index_array.npy")
             self.filenames = self._load_filenames()
             end_map = time.time()
             print(f"Position map load time: {end_map - start_map:.2f} seconds")

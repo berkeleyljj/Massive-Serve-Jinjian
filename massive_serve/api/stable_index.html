@@ -3,18 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAISS Demo UI</title>
+  <title>Compact-DS Stable</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f7f9fc;
-    }
-    .rounded-highlight {
-        background-color: #fff8b3;
-        border-radius: 0.5rem;
-        padding: 0 0.3em;
     }
   </style>
 </head>
@@ -30,7 +25,7 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">FAISS Demo</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Stable</h1>
     </header>
 
     <!-- Results Area -->
@@ -128,7 +123,7 @@
 
       try {
         const start_time = performance.now()
-        const response = await fetch('http://192.222.59.156:30888/search', {
+        const response = await fetch('http://152.69.162.113:30999/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           
@@ -178,23 +173,41 @@
             const fullText = passage.text?.trim() || "";
             const centerText = passage.center_text?.trim();
 
-            function highlightSmart(text, query) {
-              const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
-              const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
-              return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
-            }
-            let highlightedText = highlightSmart(fullText, query);
+            // function highlightSmart(text, query) {
+            //   const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
+            //   const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
+            //   return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
+            // }
+            // let highlightedText = highlightSmart(fullText, query);
 
             const initialOffset = 1;  // Expansion fix
+
+            // div.innerHTML = `
+            //   <div class="text-gray-700 text-sm mb-2 italic">
+            //     #${shownCount} • Source: <span class="font-semibold">${source}</span>
+            //   </div>
+            //   <div class="text-gray-900 leading-relaxed mb-2">${highlightedText}</div>
+            //   <button class="text-sm text-blue-600 hover:underline"
+            //     data-offset="${initialOffset}"
+            //     onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+            // `;
 
             div.innerHTML = `
               <div class="text-gray-700 text-sm mb-2 italic">
                 #${shownCount} • Source: <span class="font-semibold">${source}</span>
               </div>
-              <div class="text-gray-900 leading-relaxed mb-2">${highlightedText}</div>
-              <button class="text-sm text-blue-600 hover:underline"
-                data-offset="${initialOffset}"
-                onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+              <div class="text-gray-900 leading-relaxed mb-2"
+                data-original-raw="${fullText.replace(/"/g, '&quot;')}"
+                data-expanded-raw="">
+              ${fullText}
+            </div>
+              <div class="flex gap-4">
+                <button class="text-sm text-blue-600 hover:underline"
+                  data-offset="${initialOffset}"
+                  onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+                <button class="text-sm text-blue-600 hover:underline hidden"
+                  onclick="collapsePassage(this)">Collapse</button>
+              </div>
             `;
 
 
@@ -203,15 +216,18 @@
 
           if (shownCount === 0) {
             const none = document.createElement('div');
-            none.className = "text-gray-500 text-sm";
-            none.innerText = "No relevant non-redundant results found.";
+            none.className = 
+              `No high-quality result found. Your query might be too short or vague. 
+              Please rephrase it more clearly, e.g. "Tell me more about ..." or "Give me more non-redundant information about the ..."`;           
             container.appendChild(none);
           }
 
         } else {
           const noResult = document.createElement('div');
           noResult.className = "text-gray-500 text-sm";
-          noResult.innerText = "No relevant result found.";
+          noResult.innerText = 
+            `No high-quality result found. Your query might be too short or vague. 
+            Please rephrase it more clearly, e.g. "Tell me more about ..." or "Give me more non-redundant information about the ..."`;
           container.appendChild(noResult);
         }
 
@@ -227,10 +243,30 @@
       container.scrollTop = container.scrollHeight;
     }
 
+    async function collapsePassage(button) {
+      const parent = button.closest('.bg-white');
+      const textDiv = parent.querySelector('.text-gray-900');
+      const originalRaw = textDiv.dataset.originalRaw;
+
+      if (!originalRaw) return;
+
+      textDiv.innerHTML = originalRaw;
+
+      // Reset Show More offset
+      const showMoreBtn = parent.querySelector('button[data-offset]');
+      if (showMoreBtn) {
+        showMoreBtn.dataset.offset = 1;
+      }
+
+      // Hide Collapse button
+      button.classList.add("hidden");
+    }
+
+
     async function expandPassage(button, index_id) {
       const offset = parseInt(button.dataset.offset || "1");
 
-      const response = await fetch('http://192.222.59.156:30888/search', {
+      const response = await fetch('http://152.69.162.113:30999/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,21 +309,27 @@
         );
 
         const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
         merged = expandedRaw.replace(
           new RegExp(escapedOriginal, "g"),
           `<span class="border-b-2 border-green-500">${highlightedOriginal}</span>`
         );
+
+        // Show collapse button
+        const collapseBtn = parent.querySelectorAll("button")[1];
+        collapseBtn.classList.remove("hidden");
+
+        // Store full expanded
+        textDiv.dataset.expandedRaw = merged;
       }
 
-      // Step 4: Apply keyword-level highlight across final merged passage
-      const highlightedFull = merged.replace(/\b([\w-]+)\b/gi, word =>
-        queryWords.includes(word.toLowerCase())
-          ? `<span class="rounded-highlight">${word}</span>`
-          : word
-      );
+      // No more query word highlighting
+      // const highlightedFull = merged.replace(/\b([\w-]+)\b/gi, word =>
+      //   queryWords.includes(word.toLowerCase())
+      //     ? `<span class="rounded-highlight">${word}</span>`
+      //     : word
+      // );
 
-      textDiv.innerHTML = highlightedFull;
+      textDiv.innerHTML = merged;
       button.dataset.offset = offset + 1;
 
     }

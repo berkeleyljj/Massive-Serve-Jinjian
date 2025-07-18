@@ -194,7 +194,7 @@ def home():
 
 @app.route('/ui')
 def serve_ui():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('.', 'stable_index.html')
 
 def find_free_port():
     with socket.socket() as s:
@@ -204,7 +204,7 @@ def find_free_port():
 
 def main():
     #port = find_free_port()
-    port = 30888
+    port = 30999
     server_id = socket.gethostname()
     domain_name = ds_cfg.domain_name
     serve_info = {'server_id': server_id, 'port': port}
