@@ -121,6 +121,7 @@ class IVFPQIndexer(object):
 
     def _load_filenames(self):
         # This must match the ordering used when building the arrays
+        print(f"passage dir is {self.passage_dir}")
         filenames = [f for f in os.listdir(self.passage_dir) if f.endswith(".jsonl")]
         filenames = sorted(filenames, key=self._sort_func)
         return filenames
@@ -325,6 +326,8 @@ class IVFPQIndexer(object):
             idx = int(idx)  # ensure it's an int
             position = int(self.position_array[idx])
             filename_idx = int(self.filename_index_array[idx])
+            length = len(self.filenames)
+            # print(f"File name idx is {filename_idx} and filename length is {length}")
             filename = self.filenames[filename_idx]
             center_text, passage_id = self.read_text(idx)
             if passage_id is None:
@@ -345,20 +348,20 @@ class IVFPQIndexer(object):
 
         return passages  # List[Dict]
 
-
     def expand_passage(self, idx, offset):
         position = int(self.position_array[idx])
         fname_idx = int(self.filename_index_array[idx])
         filename = self.filenames[fname_idx]
 
-        center_text = self.read_text(idx)
+        center_text, _ = self.read_text(idx)
         text_blocks = [center_text]
         print(f"[INFO] Expansion offset is {offset}")
+
         for o in range(1, offset + 1):
             for sign in [-1, 1]:
                 neighbor_id = idx + sign * o
                 if 0 <= neighbor_id < len(self.position_array):
-                    neighbor_text = self.read_text(neighbor_id)
+                    neighbor_text, _ = self.read_text(neighbor_id)
                     if neighbor_text:
                         if sign == -1:
                             text_blocks.insert(0, neighbor_text)
@@ -369,19 +372,17 @@ class IVFPQIndexer(object):
         result = {
             "text": full_text.strip(),
             "source": filename.split('--')[0],
-            "index_id": idx,
-            "filename": filename,
-            "position": position
+            "index_id": int(idx),
+            "filename": str(filename),
+            "position": int(position)
         }
 
         if offset == 1:
             result["original_text"] = center_text.strip()
 
-
         print(f"[INFO] Return value with offset {offset} is: {result}")
 
         return result
-
 
     def _get_passage(self, index_id):
         try:
@@ -415,7 +416,7 @@ class IVFPQIndexer(object):
     #     return new_text in existing_texts
 
     # No batch search
-    def search_nobatch(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
+    def search_no_batch(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
 
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
@@ -495,7 +496,7 @@ class IVFPQIndexer(object):
 
         return all_final_scores, all_final_passages
 
-    # Batched searchfrom concurrent.futures import ThreadPoolExecutor
+    # Batched search from concurrent.futures import ThreadPoolExecutor
     def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
@@ -563,6 +564,7 @@ class IVFPQIndexer(object):
             if all(len(p) >= k for p in all_batch_passages):
                 print(f"[SEARCH] Succeeded on attempt {attempt + 1}")
                 all_final_passages = all_batch_passages
+                # print(f"All final passages are: {all_final_passages}")
                 all_final_scores = [s[:len(p)] for s, p in zip(all_scores, all_batch_passages)]
                 break
             else:

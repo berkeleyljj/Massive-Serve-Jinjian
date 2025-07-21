@@ -1,209 +1,71 @@
-# Massive Serve User Guide
+## Introduction
 
-One command to download and serve a datastore---that's it 😎.
+CompactDS is a diverse, high-quality, web-scale datastore that achieves high retrieval accuracy and subsecond latency on a single-node deployment, making it suitable for academic use. Its core design combines a compact set of high-quality, diverse data sources with in-memory approximate nearest neighbor (ANN) retrieval and on-disk exact search. We release CompactDS and our retrieval pipeline as a fully reproducible alternative to commercial search, supporting future research exploring retrieval-based AI systems. Check out our paper, [Frustratingly Simple Retrieval Improves
+Challenging, Reasoning-Intensive Benchmarks](http://arxiv.org/abs/2507.01297), for full details.  
 
-## Installation
-```bash
-pip install massive-serve --upgrade
+Due to data sensitivity issues, we release a version of CompactDS **excluding Educational Text and Books**. We also use an \# subquantizer of 64 (instead of 256 used in the paper) to build an 102GB ANN index. The full collection of the released assets is as following:
+- [CompactDS-102GB ](https://huggingface.co/datasets/alrope/CompactDS-102GB) (this dataset): the Faiss IVFPQ index and chuncked passages.
+- [CompactDS-102GB-raw-text](https://huggingface.co/datasets/alrope/CompactDS-102GB-raw-text): the raw text data from 10 data sources used to build compactds.
+- [CompactDS-102GB-queries](https://huggingface.co/datasets/alrope/CompactDS-102GB-queries): the queries from the five datasets-MMLU, MMLU Pro, AGI Eval, GPQA, and MATH-that we report the RAG results with in the paper.
+- [CompactDS-102GB-retrieval-results](https://huggingface.co/datasets/alrope/CompactDS-102GB-retrieval-results): the top-1000 retrieved passages from CompactDS using the queries from the five datasets-MMLU, MMLU Pro, AGI Eval, GPQA, and MATH-that we report the RAG results with in the paper.
+
+For download / usage of these assets, refer to [compactds-retrieval](https://github.com/Alrope123/compactds-retrieval).
+
+For RAG evaluation with the retrieved documents, refer to [compactds-eval](https://github.com/michaelduan8/compactds-eval).
+
+## Statistics
+| Source                        | # Documents (M) | # Words (B) | # Passages (M) | Size of Raw Data (G) | Size of Index (G) |
+|------------------------------|----------------:|------------:|---------------:|---------------:|---------------:|
+| Math                         |             6.4 |         7.8 |           33.7 |           15.8 |            8.3 |
+| High-quality CC              |           407.3 |       171.9 |          895.1 |          413.1 |          220.1 |
+| Academic Papers (PeS2o)      |             7.8 |        49.7 |          198.1 |          104.4 |           49.2 |
+| Wikipedia (Redpajama)        |            29.8 |        10.8 |           60.5 |           27.1 |           14.9 |
+| Reddit                       |            47.3 |         7.5 |           54.1 |           21.7 |           13.3 |
+| Wikipedia (DPR)              |            21.0 |         2.2 |           21.0 |            4.6 |            5.2 |
+| Stack Exchange               |            29.8 |         9.2 |           50.5 |           22.6 |           12.4 |
+| Github                       |            28.8 |        17.1 |           84.3 |           44.9 |           20.7 |
+| PubMed                       |            58.6 |         3.6 |           60.4 |            8.9 |           14.9 |
+| Academic Papers (Arxiv)      |             1.6 |        11.3 |           44.9 |           24.0 |           11. 0|
+| **Full CompactDS**           |       **638.4** |   **291.2** |    **1,502.5** |       **687.1**|          102.1 |
+
+## Performance
+We compare the performance of this released version of CompactDS with the two indices reported in the papers: 
+
+**Table: Comparison between the RAG performance of three versions of CompactDS at k=10. Best results are in bold.**
+|                  | Index Size | MMLU | MMLU Pro | AGI Eval | MATH | GPQA | **AVG** |
+|------------------|--------|------------|------|----------|----------|------|------|
+| No Retrieval    |  - | 68.9 | 39.8     | 56.2     | 46.9 | 29.9 | 48.3    |
+| *All 12 data sources with # Sub quantizer = 64*|            |      |          |          |      |         |
+| ANN Only | 125GB      | 75.0 | 50.9     | 57.9     | 53.0 | 34.8 | 54.3    |
+| ANN + Exact Search      | 125GB      | 74.4 | 51.7     | **59.2** | 54.6 | 30.8 | 54.1    |
+| *All 12 data sources with # Sub quantizer = 256* |    |       |      |          |          |      |       |
+| ANN Only   | 456GB      | **75.3** | 50.1 | 57.4     | 51.9 | **36.4** | 54.2 |
+| ANN + Exact Search  | 456GB      | **75.3** | **53.1** | 58.9 | **55.9** | 32.4 | **55.1** |
+| ***Excluding Educational Text/Books with # Sub quantizer = 64 (This datastore)*** |    |       |      |          |          |      |       |
+| ANN Only   | 102GB      | 73.6 | 46.8 | 57.5     | 51.6 | 30.8 | 52.0 |
+| ANN + Exact Search  | 102GB      | 74.0 | 48.6 | 57.4 | 54.0 | 35.7 | 53.9 |
+
+
+## Reproducibility
+As we adopt Inverted File Product Quantization (IVFPQ) index that approximate the nearest neighbor search, potential discrepancy could exist among resulting indices from different training runs. To provide reference for reproducibility, we build Flat indices for Math and PeS2o that performs exact nearest neighbor search. We measure Recall@10 on GPQA for the IVFPQ indices using the retrieval results from Flat as the ground truth, and obtained 0.82 and 0.80. We also find that generation with vllm brings more discrepancy in results across machines, so we recommand using Hunggingface library for generation.
+
+|                   | STEM | Human. | Social | Others | MMLU Pro | AGI Eval | MATH | Phys | Bio  | Chem | AVG   |
+|-------------------|------|--------|--------|--------|----------|----------|------|------|------|------|-------|
+| **No Retrieval**  | 60.2 | 72.0   | 78.7   | 68.9   | 39.8     | 56.2     | 46.9 | 26.7 | 47.4 | 25.7 | 48.3  |
+| **_Math_**        ||||||||||||
+| IVFPQ            | 64.2 | 73.5   | 80.3   | 70.1   | 43.4     | 57.4     | 50.6 | 32.1 | 50.0 | 22.4 | 50.7  |
+| Flat             | 63.5 | 73.1   | 80.4   | 70.6   | 44.1     | 58.0     | 52.7 | 31.6 | 47.4 | 26.8 | 51.6  |
+| **_PeS2o_**       ||||||||||||
+| IVFPQ            | 58.8 | 73.6   | 79.8   | 70.0   | 42.1     | 55.9     | 45.7 | 30.5 | 53.8 | 29.0 | 49.4  |
+| Flat             | 59.4 | 73.5   | 80.2   | 69.8   | 42.3     | 55.5     | 45.1 | 32.6 | 52.6 | 28.4 | 49.4  |
+
+
+## Citation
 ```
-
-## Usage
-List of currently supported datastores can be found in [massive-serve collection](https://huggingface.co/collections/rulins/massive-serve-681a3d499212ccfcd07ebc16).
-I will keep adding more domains and retriever combinations! Open an issue to request new datastores 😉.
-
-To serve a demo datastore:
-```bash
-massive-serve serve --domain_name demo
-```
-
-To serve a wikipedia datastore:
-```bash
-massive-serve serve --domain_name dpr_wiki_contriever_ivfpq
-```
-
-Useful notes:
-- To avoid manually specifying the data storage location (e.g., in slurm jobs), set the `DATASTORE_PATH` environment variable to your desired data directory.
-- To specify the `nprobe` (default to 64, which defines how many clusters out of 2024 you'd like to performance search in IVF index), just add ``nprobe: XX`` in your curl request.
-
-
-It will then download and serve the index and print the API and one example request in the terminal, e.g.,
-```markdown
-╔════════════════════════════════════════════════════════════╗
-║                    MASSIVE SERVE SERVER                    ║
-╠════════════════════════════════════════════════════════════╣
-║ Domain: demo                                               ║
-║ Server: XXX                                                ║
-║ Port:   XXX                                                ║
-║ Endpoint: XXX@XXX:XXX/search                               ║
-╚════════════════════════════════════════════════════════════╝
-
-
-Test your server with this curl command:
-
-curl -X POST XXX@XXX:XXX/search -H "Content-Type: application/json" -d '{"query": "Tell me more about the stories of Einstein.", "n_docs": 1, "domains": "demo"}'
-```
-
-### Send Requests
-If the API has been served, you can either send single or bulk query requests to it.
-
-**Bash Examples.**
-
-```bash
-# single-query request
-curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": "Where was Marie Curie born?", "n_docs": 1, "domains": "dpr_wiki_contriever"}'
-
-# multi-query request
-curl -X POST <user>@<address>:<port>/search -H "Content-Type: application/json" -d '{"query": ["Where was Marie Curie born?", "What is the capital of France?", "Who invented the telephone?"], "n_docs": 2, "dpr_wiki_contriever": "MassiveDS"}'
-```
-
-**Python Example.**
-```python
-import requests
-
-json_data = {
-    'query': 'Where was Marie Curie born?',
-    "n_docs": 20,
-    "domains": "dpr_wiki_contriever"
-}
-headers = {"Content-Type": "application/json"}
-
-# Add 'http://' to the URL if it is not SSL/TLS secured, otherwise use 'https://'
-response = requests.post('http://<user>@<address>:<port>/search', json=json_data, headers=headers)
-
-print(response.status_code)
-print(response.json())
-```
-
-Example output of a multi-query request:
-```json
-{
-  "message": "Search completed for '['Where was Marie Curie born?', 'What is the capital of France?', 'Who invented the telephone?']' from MassiveDS",
-  "n_docs": 2,
-  "query": [
-    "Where was Marie Curie born?",
-    "What is the capital of France?",
-    "Who invented the telephone?"
-  ],
-  "results": {
-    "n_docs": 2,
-    "query": [
-      "Where was Marie Curie born?",
-      "What is the capital of France?",
-      "Who invented the telephone?"
-    ],
-    "results": {
-      "IDs": [
-        [
-          [3, 3893807],
-          [17, 11728753]
-        ],
-        [
-          [14, 12939685],
-          [22, 1070951]
-        ],
-        [
-          [28, 18823956],
-          [22, 10406782]
-        ]
-      ],
-      "passages": [
-        [
-          "Marie Skłodowska Curie (November 7, 1867 – July 4, 1934) was a physicist and chemist of Polish upbringing and, subsequently, French citizenship. ...",
-          "=> Maria Skłodowska, better known as Marie Curie, was born on 7 November in Warsaw, Poland. ..."
-        ],
-        [
-          "Paris is the capital and most populous city in France, as well as the administrative capital of the region of Île-de-France. ...",
-          "[paʁi] ( listen)) is the capital and largest city of France. ..."
-        ],
-        [
-          "Antonio Meucci (Florence, April 13, 1808 – October 18, 1889) was an Italian inventor. ...",
-          "The telephone or phone is a telecommunications device that transmits speech by means of electric signals. ..."
-        ]
-      ],
-      "scores": [
-        [
-          1.8422218561172485,
-          1.8394594192504883
-        ],
-        [
-          1.5528039932250977,
-          1.5502511262893677
-        ],
-        [
-          1.714379906654358,
-          1.706493854522705
-        ]
-      ]
-    }
-  }
-}
-```
-
-
-# Massive Serve Developer Guide
-
-## Environment Setup
-
-### Using Conda (Recommended for GPU support)
-
-1. Create a new conda environment:
-```bash
-git clone https://github.com/RulinShao/massive-serve.git
-cd massive-serve
-conda env create -f conda-env.yml
-conda activate massive-serve
-```
-To update the existing environment:
-```bash
-conda env update -n massive-serve -f conda-env.yml
-```
-
-## Upload new index
-
-```bash
-python -m massive_serve.cli upload-data --domain_name demo
-```
-
-Test serving the index:
-```bash
-python -m massive_serve.cli serve --domain_name demo
-```
-
-## Update package
-Make sure the version in the `setup.py` has been updated to a different version. Then run:
-```bash
-rm -rf dist/ build/ massive_serve.egg-info/
-pip install build twine
-python -m build
-python -m twine upload dist/*
-```
-Users can refresh their installed repo via:
-```bash
-pip install --upgrade massive-serve
-```
-
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-
-# Citation
-If you find our package helpful, please cite:
-```
-@article{shao2024scaling,
-  title={Scaling retrieval-based language models with a trillion-token datastore},
-  author={Shao, Rulin and He, Jacqueline and Asai, Akari and Shi, Weijia and Dettmers, Tim and Min, Sewon and Zettlemoyer, Luke and Koh, Pang Wei W},
-  journal={Advances in Neural Information Processing Systems},
-  volume={37},
-  pages={91260--91299},
-  year={2024}
-}
-
-@software{massiveserve2025,
-  author = {Shao, Rulin},
-  title  = {MassiveServe: Serving and Sharing Massive Datastores},
-  year   = 2025,
-  url    = {https://github.com/RulinShao/massive-serve}
+@article{lyu2025compactds,
+  title={Frustratingly Simple Retrieval Improves Challenging, Reasoning-Intensive Benchmarks},
+  author={Xinxi Lyu and Michael Duan and Rulin Shao and Pang Wei Koh and Sewon Min}
+  journal={arXiv preprint arXiv:2507.01297},
+  year={2025}
 }
 ```

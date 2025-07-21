@@ -3,5 +3,5 @@ __pycache__/
 dist/
 embedding_cache/
 !embedding_cache/.gitkeep
-built_index_full/*
-!built_index_full/.gitkeep
+index_dev/*
+!index_dev/.gitkeep

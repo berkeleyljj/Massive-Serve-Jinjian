@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Compact-DS Scope</title>
+  <title>Compact-DS Dev</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -30,46 +30,46 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Scope (Stable Version)</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Dev</h1>
     </header>
 
     <!-- Results Area -->
     <main id="results" class="flex-1 w-full px-6 pt-32 pb-4 space-y-4 overflow-y-auto mb-36"></main>
 
     <!-- Search Bar -->
-  <div class="fixed bottom-0 right-0 md:left-64 md:right-0 bg-white shadow-md py-4 px-6 flex flex-wrap items-center gap-3 w-full">
-    <label for="nprobe" class="text-sm font-medium">nprobe</label>
-    <select id="nprobe" class="border rounded-md p-1 text-sm">
-      <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option>
-    </select>
+    <div class="fixed bottom-0 right-0 md:left-64 md:right-0 bg-white shadow-md py-4 px-6 flex flex-wrap items-center gap-3 w-full">
+      <label for="nprobe" class="text-sm font-medium">nprobe</label>
+      <select id="nprobe" class="border rounded-md p-1 text-sm">
+        <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option>
+      </select>
 
-    <label for="k" class="text-sm font-medium">k</label>
-    <select id="k" class="border rounded-md p-1 text-sm">
-      <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
-    </select>
+      <label for="k" class="text-sm font-medium">k</label>
+      <select id="k" class="border rounded-md p-1 text-sm">
+        <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
+      </select>
 
-    <!-- Exact Search button -->
-    <label for="rerankToggle" class="text-sm font-medium">exact search</label>
-    <input id="rerankToggle" type="checkbox" class="form-checkbox h-4 w-4 text-teal-600">
+      <!-- Exact Search button -->
+      <label for="rerankToggle" class="text-sm font-medium">exact search</label>
+      <input id="rerankToggle" type="checkbox" class="form-checkbox h-4 w-4 text-teal-600">
 
-    <input id="queryInput" type="text" placeholder="Ask your question..."
-      class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
+      <input id="queryInput" type="text" placeholder="Ask your question..."
+        class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
 
-    <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
-
-
+      <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
+    </div>
   </div>
 
   <!-- JavaScript -->
   <script>
     const historyList = [];
 
-    function addToHistory(query, k, nprobe, wordLimit){
+    // CHG: add latency param
+    function addToHistory(query, k, nprobe, results, latency) {
       const existingIndex = historyList.findIndex(item => item.text === query);
       if (existingIndex !== -1) {
         historyList.splice(existingIndex, 1); // remove duplicate
       }
-      historyList.unshift({text: query, k, nprobe});
+      historyList.unshift({ text: query, k, nprobe, results, latency }); // NEW: store latency
 
       const ul = document.getElementById('queryHistory');
       ul.innerHTML = '';
@@ -79,38 +79,21 @@
           <div class="font-medium">${item.text}</div>
           <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
         `;
-
         li.className = "cursor-pointer hover:text-teal-600";
         li.onclick = () => {
           document.getElementById('queryInput').value = item.text;
           document.getElementById('k').value = item.k;
           document.getElementById('nprobe').value = item.nprobe;
-          submitQuery(false); // reuse existing, no re-log
+          renderCachedResults(item); // show cached + latency
         };
         ul.appendChild(li);
       }
     }
 
-    function refreshHighlights() {
-      const enableHighlight = document.getElementById('highlightToggle').checked;
-      const stopwords = new Set(["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"]);
-      const queryWords = currentQuery.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !stopwords.has(w));
-      const regex = new RegExp(`\\b(${queryWords.join("|")})\\b`, "gi");
-
-      for (const { divRef, rawText } of cachedPassages) {
-        divRef.innerHTML = enableHighlight
-          ? rawText.replace(regex, match => `<span class="rounded-highlight">${match}</span>`)
-          : rawText;
-      }
-    }
-
-
     async function submitQuery(addToHist) {
-
       const query = document.getElementById('queryInput').value.trim();
       const nprobe = document.getElementById('nprobe').value;
       const k = document.getElementById('k').value;
-      // New
       const useRerank = document.getElementById('rerankToggle').checked;
       if (!query) return;
 
@@ -118,19 +101,15 @@
       container.innerHTML = '';
 
       const queryDisplay = document.createElement('div');
-      // queryDisplay.className = "text-gray-700 font-semibold mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
       queryDisplay.className = "text-gray-700 text-lg font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
       queryDisplay.innerHTML = `
-        <div>Query: <span class="font-semibold text-xl">${query}</span></div>
+        <div>Query: <span class="">${query}</span></div>
         <div class="flex gap-2 mt-1" id="queryMeta">
           <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">nprobe: ${nprobe}</span>
           <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">k: ${k}</span>
-          
         </div>
       `;
-
       container.appendChild(queryDisplay);
-
 
       const loadingMsg = document.createElement('div');
       loadingMsg.className = "text-gray-500 text-sm";
@@ -138,8 +117,8 @@
       container.appendChild(loadingMsg);
 
       try {
-        const start_time = performance.now()
-        const selectedPort = 30999
+        const start_time = performance.now();
+        const selectedPort = 30888;
         const response = await fetch(`http://192.222.59.156:${selectedPort}/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -150,37 +129,36 @@
             use_rerank: useRerank  // new field sent to backend
           })
         });
-        const end_time = performance.now()
-        const latencyMs = ((end_time - start_time) / 1000).toFixed(2);
+        const end_time = performance.now();
+        const latencyMs = ((end_time - start_time) / 1000).toFixed(2); // seconds as string
 
         const data = await response.json();
         container.innerHTML = '';
         container.appendChild(queryDisplay);
 
+        // CHG: decode passages before calling addToHistory
+        let passages = data?.results?.passages ?? data?.passages;
+        if (Array.isArray(passages) && Array.isArray(passages[0])) {
+          passages = passages[0];
+        }
+
+        // show latency in live query header
         const metaDiv = queryDisplay.querySelector("#queryMeta");
         metaDiv.innerHTML += `
-          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full"> search latency: ${latencyMs}s</span>
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">search latency: ${latencyMs}s</span>
         `;
-        if (addToHist) addToHistory(query, k, nprobe);
-        // const passages = data?.results?.passages || data?.passages;
-        const batchedPassages = data?.results?.passages || data?.passages;
-        const passages = Array.isArray(batchedPassages?.[0]) ? batchedPassages[0] : batchedPassages;
+
+        // CHG: store latency in history
+        if (addToHist) addToHistory(query, k, nprobe, passages, `${latencyMs}s`);
 
         if (Array.isArray(passages) && passages.length > 0) {
           const shownTexts = [];
           let shownCount = 0;
-          // const latencyNote = document.createElement('div');
-          // latencyNote.className = "text-sm text-gray-500 mb-1";
-          // latencyNote.innerText = `Searching took: ${latencyMs} seconds`;
-          // container.appendChild(latencyNote);
-
           for (const passage of passages) {
             const text = passage.text?.trim();
             if (!text) continue;
-
             const wordCount = text.split(/\s+/).filter(Boolean).length;
             if (wordCount < 5) continue;
-
             shownTexts.push(text);
             shownCount += 1;
 
@@ -188,18 +166,7 @@
             div.className = 'bg-white p-4 rounded-2xl shadow-md';
 
             const source = passage.source || 'unknown';
-            const queryWords = query.toLowerCase().split(/\s+/);
             const fullText = passage.text?.trim() || "";
-            const centerText = passage.center_text?.trim();
-
-            // function highlightSmart(text, query) {
-            //   const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["a", "an", "the", "about", "and", "or", "me", "you", "in", "on", "of", "to", "is", "was", "are", "with", "for", "that", "this", "at", "as", "by", "be", "do", "have", "has", "had", "can", "from", "but", "if", "not", "did", "done"].includes(w));
-            //   const regex = new RegExp(`\\b(${words.join("|")})\\b`, "gi");
-            //   return text.replace(regex, match => `<span class="rounded-highlight">${match}</span>`);
-            // }
-            // let highlightedText = highlightSmart(fullText, query);
-            // Only highlight query words when toggled button
-
             const initialOffset = 1;  // Expansion fix
 
             div.innerHTML = `
@@ -219,8 +186,6 @@
                   onclick="collapsePassage(this)">Collapse</button>
               </div>
             `;
-
-
             container.appendChild(div);
           }
 
@@ -230,7 +195,6 @@
             none.innerText = "No relevant non-redundant results found.";
             container.appendChild(none);
           }
-
         } else {
           const noResult = document.createElement('div');
           noResult.className = "text-gray-500 text-sm";
@@ -249,67 +213,130 @@
 
       container.scrollTop = container.scrollHeight;
     }
+    
+    function renderCachedResults(item) {
+      const { text: query, k, nprobe, results: passages, latency } = item; // NEW: destructure latency
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+
+      const queryDisplay = document.createElement('div');
+      queryDisplay.className = "text-gray-700 text-lg font-medium mb-2 bg-[#f7f9fc] py-2 px-4 shadow-sm fixed top-16 left-64 right-0 z-10";
+
+
+      queryDisplay.innerHTML = `
+        <div>Query: <span class="font-semibold text-xl">${query}</span></div>
+        <div class="flex gap-2 mt-1" id="queryMeta">
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">nprobe: ${nprobe}</span>
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">k: ${k}</span>
+          <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">search latency: ${item.latency || 'N/A'}</span>
+          <span class="bg-green-100 text-green-800 text-sm px-2 py-1 rounded-full font-medium">cached</span>
+        </div>
+      `;
+      container.appendChild(queryDisplay);
+
+      if (!Array.isArray(passages) || passages.length === 0) {
+        const noResult = document.createElement('div');
+        noResult.className = "text-gray-500 text-sm";
+        noResult.innerText = "No cached result found.";
+        container.appendChild(noResult);
+        return;
+      }
+
+      for (let i = 0; i < passages.length; i++) {
+        const passage = passages[i];
+        const text = passage.text?.trim();
+        if (!text || text.split(/\s+/).length < 5) continue;
+
+        const div = document.createElement('div');
+        div.className = 'bg-white p-4 rounded-2xl shadow-md';
+
+        const source = passage.source || 'unknown';
+        const fullText = text;
+
+        div.innerHTML = `
+          <div class="text-gray-700 text-sm mb-2 italic">
+            #${i + 1} • Source: <span class="font-semibold">${source}</span>
+          </div>
+          <div class="text-gray-900 leading-relaxed mb-2"
+              data-original-raw="${fullText.replace(/"/g, '&quot;')}"
+              data-expanded-raw="">
+            ${fullText}
+          </div>
+          <div class="flex gap-4">
+            <button class="text-sm text-blue-600 hover:underline"
+                    data-offset="1"
+                    onclick="expandPassage(this, ${passage.index_id})">Show More</button>
+            <button class="text-sm text-blue-600 hover:underline hidden"
+                    onclick="collapsePassage(this)">Collapse</button>
+          </div>
+        `;
+        container.appendChild(div);
+      }
+
+      container.scrollTop = container.scrollHeight;
+    }
 
     async function expandPassage(button, index_id) {
       const offset = parseInt(button.dataset.offset || "1");
+      try {
+        const response = await fetch('http://192.222.59.156:30888/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: "",  // query is ignored for expansion
+            expand_index_id: index_id,
+            expand_offset: offset
+          })
+        });
 
-      const response = await fetch('http://192.222.59.156:30888/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: "",  // query is ignored for expansion
-          expand_index_id: index_id,
-          expand_offset: offset
-        })
-      });
+        const data = await response.json();
+        let passages = data?.results?.passages;
+        if (Array.isArray(passages) && Array.isArray(passages[0])) {
+          passages = passages[0];
+        }
+        const passage = Array.isArray(passages) ? passages[0] : null;
+        if (!passage?.text) return;
 
-      const data = await response.json();
-      const passages = data?.results?.passages?.[0];
-      const passage = Array.isArray(passages) ? passages[0] : null;
-      if (!passage?.text) return;
+        const parent = button.closest('.bg-white');
+        const textDiv = parent.querySelector('.text-gray-900');
+        const expandedRaw = passage.text.trim();
 
-      const parent = button.closest('.bg-white');
-      const textDiv = parent.querySelector('.text-gray-900');
+        // Store original text once
+        if (offset === 1 && passage.original_text?.trim()) {
+          textDiv.dataset.originalRaw = passage.original_text.trim();
+        }
 
-      const expandedRaw = passage.text.trim();
+        const originalRaw = textDiv.dataset.originalRaw;
+        let merged = expandedRaw;
 
-      // Store original text once
-      if (offset === 1 && passage.original_text?.trim()) {
-        textDiv.dataset.originalRaw = passage.original_text.trim();
+        // Highlight original inside expanded with green underline
+        if (originalRaw) {
+          const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          merged = expandedRaw.replace(
+            new RegExp(escapedOriginal, "g"),
+            `<span class="border-b-2 border-green-500">${originalRaw}</span>`
+          );
+        }
+
+        textDiv.innerHTML = merged;
+        textDiv.dataset.expandedRaw = merged;
+
+        // Update offset for next "Show More"
+        button.dataset.offset = offset + 1;
+
+        // Reveal collapse button
+        const collapseBtn = parent.querySelectorAll("button")[1];
+        collapseBtn.classList.remove("hidden");
+      } catch (err) {
+        console.error("Expansion failed:", err);
       }
-
-      const originalRaw = textDiv.dataset.originalRaw;
-      let merged = expandedRaw;
-
-      // Highlight original inside expanded with green underline
-      if (originalRaw) {
-        const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        merged = expandedRaw.replace(
-          new RegExp(escapedOriginal, "g"),
-          `<span class="border-b-2 border-green-500">${originalRaw}</span>`
-        );
-      }
-
-      // Replace the text content
-      textDiv.innerHTML = merged;
-      textDiv.dataset.expandedRaw = merged;
-
-      // Update offset for next "Show More"
-      button.dataset.offset = offset + 1;
-
-      // Reveal collapse button
-      const collapseBtn = parent.querySelectorAll("button")[1];
-      collapseBtn.classList.remove("hidden");
     }
-
 
     function collapsePassage(button) {
       const parent = button.closest('.bg-white');
       const textDiv = parent.querySelector('.text-gray-900');
       const originalRaw = textDiv.dataset.originalRaw;
-
       if (!originalRaw) return;
-
       textDiv.innerHTML = originalRaw;
 
       // Reset the Show More button's offset
@@ -320,7 +347,7 @@
 
       // Toggle buttons
       const buttons = parent.querySelectorAll("button");
-      buttons[1].classList.add("hidden");     // "Collapse"
+      buttons[1].classList.add("hidden"); // "Collapse"
     }
 
     // Listen for Enter key to trigger search
@@ -329,10 +356,6 @@
         submitQuery(true);
       }
     });
-
-    document.getElementById('highlightToggle').addEventListener('change', refreshHighlights);
   </script>
-
-  
 </body>
 </html>

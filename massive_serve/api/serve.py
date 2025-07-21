@@ -13,6 +13,7 @@ import psutil
 import time
 from colorama import Fore, Style
 import torch
+import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from gritlm import GritLM
 
@@ -156,6 +157,18 @@ def search():
             # print(" ========= DEBUGGGGGG ======= Structured results from search route:")
             # print(json.dumps(results, indent=2, ensure_ascii=False))
 
+            def convert_ndarrays(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif isinstance(obj, list):
+                    return [convert_ndarrays(i) for i in obj]
+                elif isinstance(obj, dict):
+                    return {k: convert_ndarrays(v) for k, v in obj.items()}
+                else:
+                    return obj
+
+            results = convert_ndarrays(results)
+
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
                 "query": query_input,
@@ -201,7 +214,7 @@ def home():
 
 @app.route('/ui')
 def serve_ui():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('.', 'dev_index.html')
 
 def find_free_port():
     with socket.socket() as s:
@@ -250,6 +263,8 @@ def main():
     print(test_request)
     print(f"Deployment completed in {time.time() - startup_start:.2f} seconds")
     app.run(host='0.0.0.0', port=port)
+    # app.run(host='0.0.0.0', port=port, debug=True, use_reloader=True)
+
 
 
 if __name__ == '__main__':
