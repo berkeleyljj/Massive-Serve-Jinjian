@@ -63,7 +63,7 @@ CORS(app)
 
 
 class Item:
-    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
@@ -73,6 +73,8 @@ class Item:
         self.expand_index_id = expand_index_id
         self.expand_offset = expand_offset
         self.exact_rerank = exact_rerank
+        self.use_diverse = use_diverse
+        self.lambda_val = lambda_val
     
     def get_dict(self,):
         dict_item = {
@@ -106,7 +108,7 @@ class SearchQueue:
                 self.current_search = item
                 if item.nprobe is not None:
                     self.datastore.index.nprobe = item.nprobe
-                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset, item.exact_rerank)
+                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset, item.exact_rerank, item.use_diverse, item.lambda_val)
                 self.current_search = None
                 return results
             else:
@@ -145,6 +147,8 @@ def search():
             expand_offset = request.json.get('expand_offset', 1),
             domains=ds_cfg.domain_name,
             exact_rerank = request.json.get('use_rerank', False),
+            use_diverse=request.json.get('use_diverse', False),
+            lambda_val=request.json.get('lambda', 0.5),
         )
 
         # Perform the search synchronously with 600s timeout
@@ -221,6 +225,10 @@ def find_free_port():
         s.bind(("", 0))  # Bind to a free port provided by the host.
         return s.getsockname()[1]  # Return the port number assigned.
 
+@app.route('/<path:filename>')
+def serve_static_file(filename):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(script_dir, filename)
 
 def main():
     #port = find_free_port()

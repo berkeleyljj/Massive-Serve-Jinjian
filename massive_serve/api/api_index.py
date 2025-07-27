@@ -46,10 +46,10 @@ class DatastoreAPI():
         self.query_encoder = self.query_encoder.to(device)
         self.cfg = cfg
     
-    def search(self, query, n_docs, nprobe=None, expand_index_id=None, expand_offset=1, exact_rerank=False):
+    def search(self, query, n_docs, nprobe=None, expand_index_id=None, expand_offset=1, exact_rerank=False, use_diverse=False, lambda_val=0.5):
         print("✅ START OF search()")
         query_embedding = self.embed_query(query)
-        searched_scores, searched_passages  = self.index.search(query, query_embedding, n_docs, nprobe, expand_index_id, expand_offset, exact_rerank)
+        searched_scores, searched_passages  = self.index.search(query, query_embedding, n_docs, nprobe, expand_index_id, expand_offset, exact_rerank, use_diverse, lambda_val)
         results = {'scores': searched_scores, 'passages': searched_passages}
         return results
 

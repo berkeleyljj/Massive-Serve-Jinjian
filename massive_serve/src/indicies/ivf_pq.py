@@ -8,6 +8,7 @@ import time
 import glob
 from tqdm import tqdm
 from rerank.exact_rerank import exact_rerank_topk
+from rerank.diverse_rerank import diverse_rerank_topk
 import pdb
 import re
 import faiss
@@ -411,93 +412,9 @@ class IVFPQIndexer(object):
     def is_redundant(self, existing_texts, new_text):
         return any(t in new_text or new_text in t for t in existing_texts)
 
-    # less strict
-    # def is_redundant(self, existing_texts, new_text):
-    #     return new_text in existing_texts
-
-    # No batch search
-    def search_no_batch(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
-
-        if expand_index_id is not None:
-            print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
-            result = self.expand_passage(expand_index_id, offset=expand_offset)
-            return None, [[result]]
-
-        # Normalize inputs to batch
-        if isinstance(raw_query, str):
-            print("Raw query is a string!")
-            raw_queries = [raw_query]
-        else:
-            print(f"length of queries are {len(raw_query)}")
-            raw_queries = raw_query
-
-        t0 = time.time()
-        query_embs = query_embs.astype(np.float32)
-        if nprobe is not None:
-            self.index.nprobe = nprobe
-            print(f"[IVFPQIndexer] nprobe dynamically set to {nprobe}")
-        else:
-            print("nprobe is set to None")
-
-        K_ranges = [100, 500, 1000]
-        all_final_scores = []
-        all_final_passages = []
-
-        for attempt in range(len(K_ranges)):
-            K = K_ranges[attempt]
-            print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
-            all_scores, all_indices = self.index.search(query_embs, K)  # batched search
-
-            all_batch_passages = []
-            rerank_failed = False
-            for i, (q_text, top_indices) in enumerate(zip(raw_queries, all_indices)):
-                raw_passages = self.get_retrieved_passages(top_indices, raw_query=q_text)
-
-                if exact_rerank:
-                    try:
-                        raw_passages = exact_rerank_topk(raw_passages, query_encoder)
-                        print(f"[SEARCH] [QUERY {i}] Used Exact Rerank")
-                    except Exception as e:
-                        print(f"[SEARCH] [QUERY {i}] Rerank failed: {e}")
-                        rerank_failed = True
-
-                unique = []
-                seen_texts = []
-                for passage in raw_passages:
-                    text = passage.get("text", "").strip()
-                    if len(text.split()) < 50:
-                        continue
-                    if self.is_redundant(seen_texts, text):
-                        continue
-                    seen_texts.append(text)
-                    unique.append(passage)
-                    if len(unique) >= k:
-                        break
-
-                all_batch_passages.append(unique)
-
-            if all(len(passages) >= k for passages in all_batch_passages):
-                print(f"[SEARCH] Succeeded on attempt {attempt + 1} with passages {all_final_passages}")
-                all_final_passages = all_batch_passages
-                all_final_scores = [s[:len(p)] for s, p in zip(all_scores, all_batch_passages)]
-                break
-            else:
-                print(f"[SEARCH] Insufficient results on attempt {attempt + 1}")
-
-        if any(len(p) < k for p in all_final_passages):
-            print(f"[DEBUG] not enough k")
-            raise RuntimeError(f"One or more queries returned fewer than {k} valid passages after {len(K_ranges)} attempts")
-
-        t1 = time.time()
-        search_delay = t1 - t0
-        print(f"[SEARCH] Completed batch of {len(raw_queries)} in {search_delay:.2f}s")
-        print(f"[DEBUG] Returning scores of shape: {len(all_final_scores)} x {len(all_final_scores[0]) if all_final_scores else 0}")
-        print(f"[DEBUG] Returning passages of shape: {len(all_final_passages)} x {len(all_final_passages[0]) if all_final_passages else 0}")
-
-        return all_final_scores, all_final_passages
-
+    
     # Batched search from concurrent.futures import ThreadPoolExecutor
-    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False):
+    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False, diverse_rerank=False, lambda_val=0.5):
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
             result = self.expand_passage(expand_index_id, offset=expand_offset)
@@ -516,7 +433,7 @@ class IVFPQIndexer(object):
         else:
             print("nprobe is set to None")
 
-        K_ranges = [100, 500, 1000]
+        K_ranges = [100, 300, 400]
         all_final_scores = []
         all_final_passages = []
 
@@ -535,7 +452,7 @@ class IVFPQIndexer(object):
                 all_raw_passages = list(executor.map(retrieve_for_query, range(len(raw_queries))))
 
             all_batch_passages = []
-            rerank_failed = False
+
 
             for i, raw_passages in enumerate(all_raw_passages):
                 if exact_rerank:
@@ -543,8 +460,14 @@ class IVFPQIndexer(object):
                         raw_passages = exact_rerank_topk(raw_passages, query_encoder)
                         print(f"[SEARCH] [QUERY {i}] Used Exact Rerank")
                     except Exception as e:
-                        print(f"[SEARCH] [QUERY {i}] Rerank failed: {e}")
-                        rerank_failed = True
+                        print(f"[SEARCH] [QUERY {i}] Exact Rerank failed: {e}")
+                if diverse_rerank:
+                    try:
+                        raw_passages = diverse_rerank_topk(raw_passages, query_encoder, lambda_val=lambda_val)
+                        print(f"[SEARCH] [QUERY {i}] Used Diverse Rerank")
+                    except Exception as e:
+                        print(f"[SEARCH] [QUERY {i}] Diverse Rerank failed: {e}")
+
 
                 unique = []
                 seen_texts = []

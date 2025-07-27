@@ -18,33 +18,6 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 CACHE_DIR = "./embedding_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-
-# Old embed_queries
-# def embed_queries(args, queries, model, cached_embeddings={}):
-#     logging.info(f"Embedding {len(queries)} text after caching...")
-#     logging.info(f"queries length is {len(queries)}\n")
-#     queries = [q for q in queries if q not in cached_embeddings]
-
-#     # if "GritLM" in model_name_or_path:
-#     # Defaults to GritLM
-#     all_question = []
-#     for k, q in enumerate(queries):
-#         if args.lowercase:
-#             q = q.lower()
-#         if args.normalize_text:
-#             q = nm(q)
-#         all_question.append(q)
-#     embeddings = model.encode(all_question, batch_size=min(128, args.per_gpu_batch_size), instruction="<|embed|>\n")  # sentence-transformer has extra memory overhead and can only support a smaller batch size
-    
-#     logging.info(f"Questions embeddings shape: {embeddings.shape}")
-#     for query, embedding in zip(queries, embeddings):
-#         if np.isnan(embedding).any():
-#             logging.info(f"[WARNING] Skipping query due to NaN in embedding: {q}")
-#             continue
-#         cached_embeddings[query] = embedding
-#     return cached_embeddings
-
-
 def load_embedding_from_cache(passage_id):
     cache_path = os.path.join(CACHE_DIR, f"{passage_id}.npy")
     if os.path.exists(cache_path):
@@ -114,15 +87,13 @@ def exact_rerank_topk(raw_passages, query_encoder):
 
 
     query_embedding = text_to_embeddings[raw_query].reshape(1, -1)
-    print(000000)
     for text in ctxs:
         if text not in text_to_embeddings:
             print(f"A text is not found in text_to_embeddings")
             print(f"[INFO] Embedding cache directory: {os.path.abspath(CACHE_DIR)}")
     ctx_embeddings = [text_to_embeddings[text] for text in ctxs]
-    print(111111)
     ctxs_embedding = np.vstack(ctx_embeddings)
-    print(222222)
+
 
     print("Query embedding shape:", query_embedding.shape)
     print("Ctxs embedding shape:", ctxs_embedding.shape)

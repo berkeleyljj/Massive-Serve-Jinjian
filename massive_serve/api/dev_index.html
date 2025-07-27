@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Compact-DS Dev</title>
+  <title>Compact-DS Dive</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -15,6 +15,20 @@
         background-color: #fff8b3;
         border-radius: 0.5rem;
         padding: 0 0.3em;
+    }
+    @keyframes dinoWalk {
+      0% { background-position: 0 0; }
+      100% { background-position: -240px 0; }
+    }
+
+    #dino-animation {
+      width: 48px;
+      height: 48px;
+      background: url('/home/ubuntu/massive-serve-dev/massive_serve/api/dinosaur.png') 0 0 no-repeat;
+      background-size: 288px 48px;
+      display: inline-block;
+      margin-right: 10px;
+      animation: dinoWalk 1s steps(6) infinite;
     }
   </style>
 </head>
@@ -30,7 +44,7 @@
   <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-64">
     <!-- Rounded Header -->
     <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-64 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Dev</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Dive</h1>
     </header>
 
     <!-- Results Area -->
@@ -40,7 +54,7 @@
     <div class="fixed bottom-0 right-0 md:left-64 md:right-0 bg-white shadow-md py-4 px-6 flex flex-wrap items-center gap-3 w-full">
       <label for="nprobe" class="text-sm font-medium">nprobe</label>
       <select id="nprobe" class="border rounded-md p-1 text-sm">
-        <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option>
+        <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option><option>256</option>
       </select>
 
       <label for="k" class="text-sm font-medium">k</label>
@@ -48,14 +62,50 @@
         <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
       </select>
 
-      <!-- Exact Search button -->
-      <label for="rerankToggle" class="text-sm font-medium">exact search</label>
-      <input id="rerankToggle" type="checkbox" class="form-checkbox h-4 w-4 text-teal-600">
+      <!-- Exact & Diverse Search Options -->
+        <div class="flex items-center gap-3">
+          <div class="relative inline-block text-left">
+            <div>
+              <button type="button" id="searchDropdownButton" class="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-1 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none" onclick="toggleSearchDropdown()">
+                search option
+                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          
+            <div id="searchDropdownMenu" class="origin-bottom-right absolute left-0 bottom-full mb-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 hidden z-30">
+              <div class="py-1 px-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" id="rerankToggle" class="form-checkbox h-4 w-4 text-teal-600">
+                  exact search
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700 mt-2">
+                  <input type="checkbox" id="diverseToggle" class="form-checkbox h-4 w-4 text-teal-600" onchange="toggleLambdaState()">
+                  diverse search
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <label for="lambda" class="text-sm font-medium ml-4">λ</label>
+          <select id="lambda" class="border rounded-md p-1 text-sm bg-white" disabled>
+            <option value="0.1">0.1</option>
+            <option value="0.3">0.3</option>
+            <option value="0.5" selected>0.5</option>
+            <option value="0.7">0.7</option>
+            <option value="0.9">0.9</option>
+          </select>
+          
+        </div>
 
-      <input id="queryInput" type="text" placeholder="Ask your question..."
-        class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
+        <!-- Query Input -->
+        <input id="queryInput" type="text" placeholder="Ask your question..."
+          class="border rounded-xl p-2 flex-grow min-w-[150px] max-w-[40%]" />
 
-      <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
+        <!-- Send Button -->
+        <button onclick="submitQuery(true)" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700">Send</button>
+
     </div>
   </div>
 
@@ -71,33 +121,67 @@
       }
       historyList.unshift({ text: query, k, nprobe, results, latency }); // NEW: store latency
 
-      const ul = document.getElementById('queryHistory');
-      ul.innerHTML = '';
-      for (const item of historyList) {
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div class="font-medium">${item.text}</div>
-          <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
-        `;
-        li.className = "cursor-pointer hover:text-teal-600";
-        li.onclick = () => {
-          document.getElementById('queryInput').value = item.text;
-          document.getElementById('k').value = item.k;
-          document.getElementById('nprobe').value = item.nprobe;
-          renderCachedResults(item); // show cached + latency
-        };
-        ul.appendChild(li);
-      }
+      // const ul = document.getElementById('queryHistory');
+      // ul.innerHTML = '';
+      // for (const item of historyList) {
+      //   const li = document.createElement('li');
+      //   li.innerHTML = `
+      //     <div class="font-medium">${item.text}</div>
+      //     <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
+      //   `;
+      //   li.className = "cursor-pointer hover:text-teal-600";
+      //   li.onclick = () => {
+      //     document.getElementById('queryInput').value = item.text;
+      //     document.getElementById('k').value = item.k;
+      //     document.getElementById('nprobe').value = item.nprobe;
+      //     renderCachedResults(item); // show cached + latency
+      //   };
+      //   ul.appendChild(li);
+      // }
+      // deleteFromHistory(-1); 
+      renderHistory(); 
     }
+
+    function toggleLambdaState() {
+      const enable = document.getElementById('diverseToggle').checked;
+      const lambda = document.getElementById('lambda');
+      lambda.disabled = !enable;
+      lambda.classList.toggle("bg-gray-100", !enable);
+    }
+
+    function recordFeedback(button, type) {
+      // Disable both buttons after one click
+      const parent = button.parentElement;
+      const buttons = parent.querySelectorAll('button');
+      buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('text-gray-300');
+      });
+
+      // Replace buttons with thank-you message
+      parent.innerHTML = `<span class="text-sm text-teal-600 font-medium">Thanks for the feedback!</span>`;
+
+      // Optional: log feedback
+      console.log(`Feedback recorded: ${type}`);
+    }
+
+
+
 
     async function submitQuery(addToHist) {
       const query = document.getElementById('queryInput').value.trim();
       const nprobe = document.getElementById('nprobe').value;
       const k = document.getElementById('k').value;
       const useRerank = document.getElementById('rerankToggle').checked;
-      if (!query) return;
+      const useDiverse = document.getElementById('diverseToggle').checked;
 
+
+      const lambdaVal = parseFloat(document.getElementById('lambda').value);
+      if (!query) return;
+      
       const container = document.getElementById('results');
+      document.getElementById('welcomeMessage')?.classList.add('hidden');
+
       container.innerHTML = '';
 
       const queryDisplay = document.createElement('div');
@@ -126,7 +210,9 @@
             query,
             nprobe: parseInt(nprobe),
             n_docs: parseInt(k),
-            use_rerank: useRerank  // new field sent to backend
+            use_rerank: useRerank,  // new field sent to backend
+            use_diverse: useDiverse,
+            lambda: lambdaVal
           })
         });
         const end_time = performance.now();
@@ -163,7 +249,7 @@
             shownCount += 1;
 
             const div = document.createElement('div');
-            div.className = 'bg-white p-4 rounded-2xl shadow-md';
+            div.className = 'bg-white p-4 rounded-2xl shadow-md relative';
 
             const source = passage.source || 'unknown';
             const fullText = passage.text?.trim() || "";
@@ -186,6 +272,15 @@
                   onclick="collapsePassage(this)">Collapse</button>
               </div>
             `;
+
+            div.innerHTML += `
+              <div class="absolute bottom-3 right-4 flex gap-2 items-center">
+                <span class="text-sm font-medium text-gray-700">Is the passage relevant?</span>
+                <button onclick="recordFeedback(this, 'up')" class="text-gray-400 hover:text-green-600 text-lg" title="Yes">[YES]</button>
+                <button onclick="recordFeedback(this, 'down')" class="text-gray-400 hover:text-red-600 text-lg" title="No">[NO]</button>
+              </div>
+            `;
+
             container.appendChild(div);
           }
 
@@ -196,10 +291,24 @@
             container.appendChild(none);
           }
         } else {
-          const noResult = document.createElement('div');
-          noResult.className = "text-gray-500 text-sm";
-          noResult.innerText = "No relevant result found.";
-          container.appendChild(noResult);
+              // Update inside submitQuery else-block
+              const noResult = document.createElement('div');
+              noResult.className = "text-red-600 font-semibold text-sm mt-2 whitespace-pre-line flex items-center";
+
+              // const dino = document.createElement('div');
+              // dino.id = 'dino-animation';
+
+              const msg = document.createElement('span');
+              msg.innerText = "🤖 Query engine failure: insufficient results. \n ⚠️ Recalibration required. \n 🔧 Please rephrase the query with more detailed description!";
+
+              // noResult.appendChild(dino);
+              noResult.appendChild(msg);
+              container.appendChild(noResult);
+
+          // const noResult = document.createElement('div');
+          // noResult.className = "text-red-600 font-semibold text-sm mt-2";
+          // noResult.innerText = "Oops! Not enough relevant results.\nTry making your query more specific or descriptive — a little spice goes a long way!";
+          // container.appendChild(noResult);
         }
 
       } catch (err) {
@@ -248,7 +357,7 @@
         if (!text || text.split(/\s+/).length < 5) continue;
 
         const div = document.createElement('div');
-        div.className = 'bg-white p-4 rounded-2xl shadow-md';
+        div.className = 'bg-white p-4 rounded-2xl shadow-md relative';
 
         const source = passage.source || 'unknown';
         const fullText = text;
@@ -269,6 +378,11 @@
             <button class="text-sm text-blue-600 hover:underline hidden"
                     onclick="collapsePassage(this)">Collapse</button>
           </div>
+          <div class="absolute bottom-3 right-4 flex gap-2 items-center">
+            <span class="text-sm font-medium text-gray-700">Is the passage relevant?</span>
+            <button onclick="recordFeedback(this, 'up')" class="text-gray-400 hover:text-green-600 text-lg" title="Yes">[YES]</button>
+            <button onclick="recordFeedback(this, 'down')" class="text-gray-400 hover:text-red-600 text-lg" title="No">[NO]</button>
+          </div>
         `;
         container.appendChild(div);
       }
@@ -277,7 +391,16 @@
     }
 
     async function expandPassage(button, index_id) {
-      const offset = parseInt(button.dataset.offset || "1");
+      const offset  = parseInt(button.dataset.offset || "1");
+
+      // Limit to 3 expansions
+      if (offset > 3) {
+        button.disabled = true;
+        button.classList.add("text-gray-400", "cursor-not-allowed");
+        button.classList.remove("text-blue-600", "hover:underline");
+        return;
+      }
+
       try {
         const response = await fetch('http://192.222.59.156:30888/search', {
           method: 'POST',
@@ -309,7 +432,7 @@
         const originalRaw = textDiv.dataset.originalRaw;
         let merged = expandedRaw;
 
-        // Highlight original inside expanded with green underline
+        // Highlight original inside expanded
         if (originalRaw) {
           const escapedOriginal = originalRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           merged = expandedRaw.replace(
@@ -321,8 +444,16 @@
         textDiv.innerHTML = merged;
         textDiv.dataset.expandedRaw = merged;
 
-        // Update offset for next "Show More"
+        // Update offset for next expansion
         button.dataset.offset = offset + 1;
+
+        // Disable button after 3 expansions
+        if (offset + 1 > 3) {
+          button.setAttribute("title", "Expansion limit reached");
+          button.setAttribute("data-disabled", "true");
+          button.classList.add("text-gray-400", "cursor-not-allowed");
+          button.classList.remove("text-blue-600", "hover:underline");
+        }
 
         // Reveal collapse button
         const collapseBtn = parent.querySelectorAll("button")[1];
@@ -332,23 +463,101 @@
       }
     }
 
+
     function collapsePassage(button) {
       const parent = button.closest('.bg-white');
       const textDiv = parent.querySelector('.text-gray-900');
       const originalRaw = textDiv.dataset.originalRaw;
       if (!originalRaw) return;
+
+      // Measure offset before shrinking
+      const parentTop = parent.getBoundingClientRect().top + window.scrollY;
+      const headerHeight = document.querySelector('header').offsetHeight || 80;
+
+      // Collapse content
       textDiv.innerHTML = originalRaw;
 
-      // Reset the Show More button's offset
       const showMoreBtn = parent.querySelector('button[data-offset]');
       if (showMoreBtn) {
         showMoreBtn.dataset.offset = 1;
+        showMoreBtn.disabled = false;
+        showMoreBtn.classList.remove("text-gray-400", "cursor-not-allowed");
+        showMoreBtn.classList.add("text-blue-600", "hover:underline");
       }
 
-      // Toggle buttons
       const buttons = parent.querySelectorAll("button");
-      buttons[1].classList.add("hidden"); // "Collapse"
+      buttons[1].classList.add("hidden");
+
+      // Scroll to original passage accounting for fixed header
+      setTimeout(() => {
+        const header = document.querySelector('header');
+        const headerHeight = header ? header.getBoundingClientRect().height : 64;
+        const buffer = 95;  // adjust this if still not enough
+        window.scrollTo({ top: parentTop - headerHeight - buffer, behavior: 'smooth' });
+      }, 0);
     }
+
+
+    function deleteFromHistory(index) {
+      historyList.splice(index, 1);
+      renderHistory()
+    }
+
+    function renderHistory() {
+      const ul = document.getElementById('queryHistory');
+      ul.innerHTML = '';
+      historyList.forEach((item, i) => {
+        const li = document.createElement('li');
+        li.className = "group rounded-lg relative hover:bg-gray-100 px-3 py-2 transition";
+
+        const menuId = `menu-${i}`;
+        const btnId = `dot-${i}`;
+
+        li.innerHTML = `
+          <div class="flex justify-between items-center">
+            <div class="cursor-pointer text-gray-900 hover:text-black font-medium truncate w-full"
+              onclick="document.getElementById('queryInput').value='${item.text}'; document.getElementById('k').value='${item.k}'; document.getElementById('nprobe').value='${item.nprobe}'; renderCachedResults(historyList[${i}]);">
+              ${item.text}
+            </div>
+            <div class="relative">
+              <button id="${btnId}" class="text-gray-400 hover:text-gray-700 focus:outline-none px-2"
+                      onclick="toggleMenu('${menuId}', '${btnId}')">⋯</button>
+              <div id="${menuId}" class="hidden absolute right-0 top-6 mt-1 w-24 bg-white rounded-md shadow-lg ring-1 ring-gray-200 z-30">
+                <button onclick="deleteFromHistory(${i})" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100">Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">nprobe: ${item.nprobe} | k: ${item.k}</div>
+        `;
+        ul.appendChild(li);
+      });
+    }
+
+
+    function toggleMenu(menuId, btnId) {
+      const menu = document.getElementById(menuId);
+      const btn = document.getElementById(btnId);
+      const isOpen = !menu.classList.contains('hidden');
+
+      // Close all open menus
+      document.querySelectorAll("[id^='menu-']").forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll("[id^='dot-']").forEach(b => b.classList.remove('text-gray-700'));
+
+      if (!isOpen) {
+        menu.classList.remove('hidden');
+        btn.classList.add('text-gray-700'); // darken dot
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      const inside = e.target.closest("[id^='menu-'], [id^='dot-']");
+      if (!inside) {
+        document.querySelectorAll("[id^='menu-']").forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll("[id^='dot-']").forEach(b => b.classList.remove('text-gray-700'));
+      }
+    });
+
+
 
     // Listen for Enter key to trigger search
     document.getElementById('queryInput').addEventListener('keydown', function(e) {
@@ -356,6 +565,38 @@
         submitQuery(true);
       }
     });
+
+
+    function toggleSearchDropdown() {
+      const menu = document.getElementById('searchDropdownMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById('searchDropdownMenu');
+      const button = document.getElementById('searchDropdownButton');
+      if (!dropdown.contains(event.target) && !button.contains(event.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
+    function toggleLambdaState() {
+      const diverse = document.getElementById('diverseToggle').checked;
+      const lambda = document.getElementById('lambda');
+      lambda.disabled = !diverse;
+      lambda.classList.toggle("bg-gray-100", !diverse);
+    }
+
+
+    toggleLambdaState();
   </script>
+  <!-- Welcome Message -->
+  <div id="welcomeMessage" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-gray-700 pointer-events-none">
+    <img src="./pod.jpg" alt="Icon" class="w-24 h-24 mb-4" />
+    <h2 class="text-4xl font-bold mb-2">Dive into Compact-DS!</h2>
+    <p class="text-base text-gray-700">Query and cast your valuable vote for relevance!</p>
+  </div>
+
 </body>
 </html>
