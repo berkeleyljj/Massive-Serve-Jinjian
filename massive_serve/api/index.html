@@ -8,10 +8,64 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-DBhzJDZb.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CQ1vz_qw.css">
+    <script type="module" crossorigin src="/assets/index-DBhzJDZb.js?v=10"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CQ1vz_qw.css?v=10">
   </head>
   <body>
     <div id="root"></div>
+          <script>
+        // Debug script to check if elements are rendered
+        document.addEventListener('DOMContentLoaded', () => {
+          console.log('DOM loaded, checking for elements...');
+          setTimeout(() => {
+            const sendButton = document.querySelector('[data-send-button]');
+            const searchControls = document.getElementById('search-controls');
+            const queryInput = document.querySelector('[data-query-input]');
+            
+            console.log('Send button:', sendButton);
+            console.log('Search controls:', searchControls);
+            console.log('Query input:', queryInput);
+            
+            if (sendButton) {
+              console.log('Send button styles:', {
+                opacity: sendButton.style.opacity,
+                visibility: sendButton.style.visibility,
+                display: sendButton.style.display,
+                className: sendButton.className,
+                computedStyle: window.getComputedStyle(sendButton)
+              });
+              
+              // Check if button is actually visible
+              const rect = sendButton.getBoundingClientRect();
+              console.log('Send button position:', {
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+                visible: rect.width > 0 && rect.height > 0
+              });
+            } else {
+              console.log('❌ Send button not found!');
+              // Check if the container exists
+              const queryInputContainer = document.getElementById('query-input');
+              console.log('Query input container:', queryInputContainer);
+              if (queryInputContainer) {
+                console.log('Query input container HTML:', queryInputContainer.innerHTML);
+              }
+            }
+            
+            // Check all buttons on the page
+            const allButtons = document.querySelectorAll('button');
+            console.log('All buttons found:', allButtons.length);
+            allButtons.forEach((btn, index) => {
+              console.log(`Button ${index}:`, {
+                text: btn.textContent,
+                className: btn.className,
+                dataAttributes: btn.dataset
+              });
+            });
+          }, 3000);
+        });
+      </script>
   </body>
 </html> 
