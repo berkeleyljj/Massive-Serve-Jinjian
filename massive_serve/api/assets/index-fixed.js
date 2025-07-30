@@ -243,24 +243,120 @@
         </div>
       </div>
     `}setLoading(e){console.log("SearchResults setLoading called with:",e);this.isLoading=e,this.render()}expandPassage(e,t){console.log("expandPassage called with:",e,t);let s=[];if(t&&t.results&&t.results.passages){s=t.results.passages;if(Array.isArray(s)&&Array.isArray(s[0])){s=s[0]}}this.setExpandedPassages(e,s);console.log("Set expanded passages for",e,":",s);const a=this.container.querySelector(`[data-passage-id="${e}"]`);if(a&&s.length>0){const r=s[0],i=a.querySelector(".text-chat-text");if(i&&r.text){const d=i.dataset.originalText||i.textContent,o=r.text.trim();let c=o;if(d&&d!==o){const h=d.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");c=o.replace(new RegExp(h,"g"),`<span class="border-b-2 border-green-500">${d}</span>`)}i.innerHTML=c;i.dataset.expandedText=c;const n=a.querySelector("[data-show-more]");if(n){const u=(parseInt(n.dataset.offset)||1)+1;n.dataset.offset=u;if(u>3){n.disabled=true;n.classList.add("text-gray-400","cursor-not-allowed");n.classList.remove("text-blue-600","hover:underline");n.textContent="Expansion limit reached"}}}}this.render()}collapsePassage(e){const a=this.container.querySelector(`[data-passage-id="${e}"]`);if(a){const i=a.querySelector(".text-chat-text");const d=i.dataset.originalText;if(d){i.innerHTML=d;this.expandedPassages.delete(e);this.removeExpandedPassages(e);const n=a.querySelector("[data-show-more]");if(n){n.dataset.offset="1";n.disabled=false;n.classList.remove("text-gray-400","cursor-not-allowed");n.classList.add("text-blue-600","hover:underline");n.textContent="Show More"}this.render()}}}setExpandedPassages(e,t){this.expandedPassagesData||(this.expandedPassagesData=new Map),this.expandedPassagesData.set(e,t)}getExpandedPassages(e){return this.expandedPassagesData?this.expandedPassagesData.get(e)||[]:[]}removeExpandedPassages(e){this.expandedPassagesData&&this.expandedPassagesData.delete(e)}}class y{constructor(e,t){this.container=e,this.onSubmit=t,this.isLoading=!1,this.render()}    render(){this.container.innerHTML=`
-      <div class="flex items-end gap-4">
-        <textarea 
-          class="flex-1 p-4 border border-gray-300 rounded-lg resize-none" 
-          rows="1"
-          placeholder="Enter your search query..."
-          data-query-input
-        ></textarea>
-        <button 
-          class="bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
-          data-send-button
-          disabled
-          title="Send message"
-          style="opacity: 1; visibility: visible; display: block;"
-        >
-          Send
-        </button>
+      <div class="flex justify-center w-full">
+        <div class="w-[75%] flex gap-2 items-center relative">
+          <textarea 
+            class="flex-1 p-4 border border-gray-300 rounded-lg resize-none" 
+            rows="1"
+            placeholder="Enter your search query..."
+            data-query-input
+          ></textarea>
+          <button 
+            class="absolute right-[12%] bottom-8 bg-teal-600 text-white rounded-full w-12 h-12 flex items-center justify-center shadow hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            data-send-button
+            disabled
+            title="Send message"
+            style="opacity: 1; visibility: visible; display: block;"
+          >
+            ✈️
+          </button>
+        </div>
       </div>
-    `,this.attachEventListeners()}attachEventListeners(){const e=this.container.querySelector("[data-query-input]"),t=this.container.querySelectorAll("[data-send-button]");e.addEventListener("input",()=>{this.adjustTextareaHeight(e),this.updateSendButtonState()}),e.addEventListener("keydown",s=>{s.key==="Enter"&&!s.shiftKey&&(s.preventDefault(),this.handleSubmit())}),t.forEach(s=>{s.addEventListener("click",()=>{this.handleSubmit()})}),this.adjustTextareaHeight(e)}adjustTextareaHeight(e){e.style.height="auto",e.style.height=Math.min(e.scrollHeight,120)+"px"}updateSendButtonState(){const e=this.container.querySelector("[data-query-input]"),t=this.container.querySelectorAll("[data-send-button]"),s=e.value.trim().length>0;t.forEach(a=>{a.disabled=!s||this.isLoading;a.style.opacity=s&&!this.isLoading?"1":"0.5";a.style.display="block";a.style.visibility="visible"})}handleSubmit(){console.log("handleSubmit called, isLoading:",this.isLoading);if(this.isLoading)return;const t=this.container.querySelector("[data-query-input]").value.trim();console.log("Query value:",t);t&&this.onSubmit(t)}setLoading(e){this.isLoading=e;const t=this.container.querySelectorAll("[data-send-button]");t.forEach(r=>{r.disabled=e;if(e){r.classList.add("animate-spin");r.style.opacity="0.5"}else{r.classList.remove("animate-spin");r.style.opacity="1"}}),this.updateSendButtonState()}setQuery(e){const t=this.container.querySelector("[data-query-input]");t.value=e,this.adjustTextareaHeight(t),this.updateSendButtonState()}clear(){const e=this.container.querySelector("[data-query-input]");e.value="",this.adjustTextareaHeight(e),this.updateSendButtonState()}focus(){this.container.querySelector("[data-query-input]").focus()}}class g{constructor(){this.baseUrl="http://192.222.59.156:30888"}async search(e,t={}){const{n_docs:s=10,nprobe:a=32,exact_rerank:r=!1,use_diverse:i=!1,lambda:n=.5}=t,d={query:e,nprobe:parseInt(a),n_docs:parseInt(s),use_rerank:r,use_diverse:i,lambda:n};console.log("Search payload:",d);try{const o=await fetch(`${this.baseUrl}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});if(!o.ok)throw new Error(`HTTP error! status: ${o.status}`);const c=await o.json();console.log("Search response:",c);return c}catch(o){throw console.error("Search request failed:",o),o}}async expand(e,t){const s={query:"",expand_index_id:e,expand_offset:t};console.log("Expand payload:",s);try{const a=await fetch(`${this.baseUrl}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(s)});if(!a.ok)throw new Error(`HTTP error! status: ${a.status}`);const r=await a.json();console.log("Expand response:",r);return r}catch(a){throw console.error("Expand request failed:",a),a}}}class x{constructor(e){this.root=e,this.searchService=new g,this.queryHistory=[],this.currentResults=null,this.currentSearchParams=null,this.isLoading=!1,this.init()}init(){this.render(),this.loadQueryHistory()}render(){this.root.innerHTML=`
+    `,this.attachEventListeners()}attachEventListeners(){const e=this.container.querySelector("[data-query-input]"),t=this.container.querySelectorAll("[data-send-button]");e.addEventListener("input",()=>{this.adjustTextareaHeight(e),this.updateSendButtonState()}),e.addEventListener("keydown",s=>{s.key==="Enter"&&!s.shiftKey&&(s.preventDefault(),this.handleSubmit())}),t.forEach(s=>{s.addEventListener("click",()=>{this.handleSubmit()})}),this.adjustTextareaHeight(e)}adjustTextareaHeight(e){e.style.height="auto",e.style.height=Math.min(e.scrollHeight,120)+"px"}updateSendButtonState(){const e=this.container.querySelector("[data-query-input]"),t=this.container.querySelectorAll("[data-send-button]"),s=e.value.trim().length>0;t.forEach(a=>{a.disabled=!s||this.isLoading;a.style.opacity=s&&!this.isLoading?"1":"0.5";a.style.display="block";a.style.visibility="visible"})}handleSubmit(){console.log("handleSubmit called, isLoading:",this.isLoading);if(this.isLoading)return;const t=this.container.querySelector("[data-query-input]").value.trim();console.log("Query value:",t);t&&this.onSubmit(t)}setLoading(e){this.isLoading=e;const t=this.container.querySelectorAll("[data-send-button]");t.forEach(r=>{r.disabled=e;if(e){r.classList.add("animate-spin");r.style.opacity="0.5"}else{r.classList.remove("animate-spin");r.style.opacity="1"}}),this.updateSendButtonState()}setQuery(e){const t=this.container.querySelector("[data-query-input]");t.value=e,this.adjustTextareaHeight(t),this.updateSendButtonState()}clear(){const e=this.container.querySelector("[data-query-input]");e.value="",this.adjustTextareaHeight(e),this.updateSendButtonState()}focus(){this.container.querySelector("[data-query-input]").focus()}}class g{constructor(){this.baseUrl="http://192.222.59.156:30888"}async search(e,t={}){const{n_docs:s=10,nprobe:a=32,exact_rerank:r=!1,use_diverse:i=!1,lambda:n=.5}=t,d={query:e,nprobe:parseInt(a),n_docs:parseInt(s),use_rerank:r,use_diverse:i,lambda:n};console.log("Search payload:",d);try{const o=await fetch(`${this.baseUrl}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});if(!o.ok)throw new Error(`HTTP error! status: ${o.status}`);const c=await o.json();console.log("Search response:",c);return c}catch(o){throw console.error("Search request failed:",o),o}}async expand(e,t){const s={query:"",expand_index_id:e,expand_offset:t};console.log("Expand payload:",s);try{const a=await fetch(`${this.baseUrl}/search`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(s)});if(!a.ok)throw new Error(`HTTP error! status: ${a.status}`);const r=await a.json();console.log("Expand response:",r);return r}catch(a){throw         console.error("Expand request failed:",a),a}}}class ParametersPanel {
+  constructor(container, onChange) {
+    this.container = container;
+    this.onChange = onChange;
+    this.isVisible = false;
+    this.init();
+  }
+
+  init() {
+    this.attachEventListeners();
+  }
+
+  attachEventListeners() {
+    // Toggle button functionality
+    const toggleBtn = document.getElementById('params-toggle');
+    toggleBtn.addEventListener('click', () => {
+      this.toggle();
+    });
+
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!this.container.contains(e.target) && e.target.id !== 'params-toggle') {
+        this.hide();
+      }
+    });
+
+    // Parameter change listeners
+    ['params-n-docs', 'params-nprobe', 'params-exact-rerank', 'params-diverse', 'params-lambda'].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.addEventListener('change', () => {
+          this.handleParameterChange();
+          if (id === 'params-diverse') {
+            this.toggleLambdaState();
+          }
+        });
+      }
+    });
+  }
+
+  toggle() {
+    if (this.isVisible) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  }
+
+  show() {
+    this.container.classList.remove('hidden');
+    this.isVisible = true;
+  }
+
+  hide() {
+    this.container.classList.add('hidden');
+    this.isVisible = false;
+  }
+
+  toggleLambdaState() {
+    const diverseCheckbox = document.getElementById('params-diverse');
+    const lambdaSelect = document.getElementById('params-lambda');
+    const isEnabled = diverseCheckbox.checked;
+    
+    lambdaSelect.disabled = !isEnabled;
+    if (isEnabled) {
+      lambdaSelect.classList.remove('bg-gray-100');
+    } else {
+      lambdaSelect.classList.add('bg-gray-100');
+    }
+  }
+
+  handleParameterChange() {
+    const params = this.getParameters();
+    this.onChange(params);
+  }
+
+  getParameters() {
+    return {
+      n_docs: parseInt(document.getElementById('params-n-docs').value),
+      nprobe: parseInt(document.getElementById('params-nprobe').value),
+      exact_rerank: document.getElementById('params-exact-rerank').checked,
+      use_diverse: document.getElementById('params-diverse').checked,
+      lambda: parseFloat(document.getElementById('params-lambda').value)
+    };
+  }
+
+  setParameters(params) {
+    if (params.n_docs) document.getElementById('params-n-docs').value = params.n_docs;
+    if (params.nprobe) document.getElementById('params-nprobe').value = params.nprobe;
+    if (params.exact_rerank !== undefined) document.getElementById('params-exact-rerank').checked = params.exact_rerank;
+    if (params.use_diverse !== undefined) document.getElementById('params-diverse').checked = params.use_diverse;
+    if (params.lambda) document.getElementById('params-lambda').value = params.lambda;
+    this.toggleLambdaState();
+  }
+}class x{constructor(e){this.root=e,this.searchService=new g,this.queryHistory=[],this.currentResults=null,this.currentSearchParams=null,this.isLoading=!1,this.init()}init(){this.render(),this.loadQueryHistory()}render(){this.root.innerHTML=`
       <div class="flex h-screen bg-chat-bg font-inter">
         <!-- Query History Sidebar -->
         <div class="w-80 bg-white border-r border-chat-border flex flex-col">
@@ -284,6 +380,92 @@
             <div id="query-input" class="px-12 pb-8"></div>
           </div>
         </div>
+        
+        <!-- Parameters Panel Toggle Button -->
+        <button id="params-toggle" class="fixed bottom-4 left-4 w-12 h-12 bg-teal-600 text-white rounded-full flex items-center justify-center shadow hover:bg-teal-700 transition-colors">
+          ⚙️
+        </button>
+        
+        <!-- Parameters Panel -->
+        <div id="params-panel" class="hidden fixed bottom-20 left-4 bg-white border border-chat-border rounded-lg shadow-lg p-4 z-50">
+          <div class="w-80">
+            <h3 class="text-lg font-semibold text-chat-text mb-4">Parameters</h3>
+            <div class="grid grid-cols-1 gap-4">
+              <div class="group relative">
+                <label class="flex items-center gap-2 text-sm font-medium text-chat-text">
+                  n_docs 
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap">
+                    Number of documents to retrieve
+                  </div>
+                </label>
+                <select class="dropdown w-full" id="params-n-docs">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              
+              <div class="group relative">
+                <label class="flex items-center gap-2 text-sm font-medium text-chat-text">
+                  nprobe 
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap">
+                    Number of clusters to search
+                  </div>
+                </label>
+                <select class="dropdown w-full" id="params-nprobe">
+                  <option value="1">1</option>
+                  <option value="8">8</option>
+                  <option value="16">16</option>
+                  <option value="32" selected>32</option>
+                  <option value="64">64</option>
+                  <option value="128">128</option>
+                </select>
+              </div>
+              
+              <div class="group relative">
+                <label class="flex items-center gap-2 text-sm font-medium text-chat-text">
+                  <input type="checkbox" id="params-exact-rerank" class="form-checkbox h-4 w-4 text-teal-600">
+                  Exact Rerank
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap">
+                    Use exact search for reranking
+                  </div>
+                </label>
+              </div>
+              
+              <div class="group relative">
+                <label class="flex items-center gap-2 text-sm font-medium text-chat-text">
+                  <input type="checkbox" id="params-diverse" class="form-checkbox h-4 w-4 text-teal-600">
+                  Diverse Search
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap">
+                    Enable diverse search results
+                  </div>
+                </label>
+              </div>
+              
+              <div class="group relative">
+                <label class="flex items-center gap-2 text-sm font-medium text-chat-text">
+                  Lambda
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap">
+                    Diversity parameter (0.0-1.0)
+                  </div>
+                </label>
+                <select class="dropdown w-full" id="params-lambda" disabled>
+                  <option value="0.1">0.1</option>
+                  <option value="0.3">0.3</option>
+                  <option value="0.5" selected>0.5</option>
+                  <option value="0.7">0.7</option>
+                  <option value="0.9">0.9</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    `,this.initializeComponents()}initializeComponents(){this.queryHistoryComponent=new p(document.getElementById("query-history"),this.onQueryHistorySelect.bind(this),this.onQueryHistoryRename.bind(this),this.onQueryHistoryDelete.bind(this)),this.searchControlsComponent=new v(document.getElementById("search-controls"),this.onSearchParamsChange.bind(this)),this.searchResultsComponent=new m(document.getElementById("search-results"),this.onShowMore.bind(this)),this.queryInputComponent=new y(document.getElementById("query-input"),this.onQuerySubmit.bind(this))}async onQuerySubmit(e,t){if(e.trim()){this.isLoading=!0,this.updateLoadingState();const startTime=performance.now();try{const searchParams=t||this.currentSearchParams||this.searchControlsComponent.getSearchParams();console.log("Using search params:",searchParams);const s=await this.searchService.search(e,searchParams);const endTime=performance.now();const latencyMs=((endTime-startTime)/1000).toFixed(2);console.log("Search completed, results:",s);this.currentResults=s;const a={id:Date.now(),query:e,timestamp:new Date().toISOString(),results:s,searchParams:searchParams,latency:latencyMs};this.queryHistory.unshift(a),this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory),this.searchResultsComponent.displayResults(s,latencyMs,searchParams,e)}catch(s){console.error("Search error:",s),this.searchResultsComponent.displayError("Search failed. Please try again.")}finally{this.isLoading=!1,this.updateLoadingState()}}}onQueryHistorySelect(e){this.currentResults=e.results,this.searchResultsComponent.displayResults(e.results,e.latency,e.searchParams,e.query),this.queryInputComponent.setQuery(e.query),this.searchControlsComponent.setSearchParams(e.searchParams)}onQueryHistoryRename(e,t){e.query=t,this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory)}onQueryHistoryDelete(e){this.queryHistory=this.queryHistory.filter(t=>t.id!==e.id),this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory)}onSearchParamsChange(e){this.currentSearchParams=e}async onShowMore(e,t){try{const s=await this.searchService.expand(e,t);this.searchResultsComponent.expandPassage(e,s)}catch(s){console.error("Expand error:",s),this.searchResultsComponent.displayError("Failed to expand passage.")}}updateLoadingState(){console.log("updateLoadingState called with isLoading:",this.isLoading);this.queryInputComponent.setLoading(this.isLoading),this.searchResultsComponent.setLoading(this.isLoading)}loadQueryHistory(){try{const e=localStorage.getItem("faiss-rag-query-history");e&&(this.queryHistory=JSON.parse(e),this.queryHistoryComponent.updateHistory(this.queryHistory))}catch(e){console.error("Failed to load query history:",e)}}saveQueryHistory(){try{const e=this.queryHistory.slice(0,50);localStorage.setItem("faiss-rag-query-history",JSON.stringify(e))}catch(e){console.error("Failed to save query history:",e)}}}document.addEventListener("DOMContentLoaded",()=>{const l=document.getElementById("root");new x(l)});
+         `,this.initializeComponents()}initializeComponents(){this.queryHistoryComponent=new p(document.getElementById("query-history"),this.onQueryHistorySelect.bind(this),this.onQueryHistoryRename.bind(this),this.onQueryHistoryDelete.bind(this)),this.searchControlsComponent=new v(document.getElementById("search-controls"),this.onSearchParamsChange.bind(this)),this.searchResultsComponent=new m(document.getElementById("search-results"),this.onShowMore.bind(this)),this.queryInputComponent=new y(document.getElementById("query-input"),this.onQuerySubmit.bind(this)),this.parametersPanelComponent=new ParametersPanel(document.getElementById("params-panel"),this.onParametersChange.bind(this))}onParametersChange(e){this.currentSearchParams=e}async onQuerySubmit(e,t){if(e.trim()){this.isLoading=!0,this.updateLoadingState();const startTime=performance.now();try{const searchParams=t||this.currentSearchParams||this.searchControlsComponent.getSearchParams();console.log("Using search params:",searchParams);const s=await this.searchService.search(e,searchParams);const endTime=performance.now();const latencyMs=((endTime-startTime)/1000).toFixed(2);console.log("Search completed, results:",s);this.currentResults=s;const a={id:Date.now(),query:e,timestamp:new Date().toISOString(),results:s,searchParams:searchParams,latency:latencyMs};this.queryHistory.unshift(a),this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory),this.searchResultsComponent.displayResults(s,latencyMs,searchParams,e)}catch(s){console.error("Search error:",s),this.searchResultsComponent.displayError("Search failed. Please try again.")}finally{this.isLoading=!1,this.updateLoadingState()}}}onQueryHistorySelect(e){this.currentResults=e.results,this.searchResultsComponent.displayResults(e.results,e.latency,e.searchParams,e.query),this.queryInputComponent.setQuery(e.query),this.searchControlsComponent.setSearchParams(e.searchParams)}onQueryHistoryRename(e,t){e.query=t,this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory)}onQueryHistoryDelete(e){this.queryHistory=this.queryHistory.filter(t=>t.id!==e.id),this.saveQueryHistory(),this.queryHistoryComponent.updateHistory(this.queryHistory)}onSearchParamsChange(e){this.currentSearchParams=e}async onShowMore(e,t){try{const s=await this.searchService.expand(e,t);this.searchResultsComponent.expandPassage(e,s)}catch(s){console.error("Expand error:",s),this.searchResultsComponent.displayError("Failed to expand passage.")}}updateLoadingState(){console.log("updateLoadingState called with isLoading:",this.isLoading);this.queryInputComponent.setLoading(this.isLoading),this.searchResultsComponent.setLoading(this.isLoading)}loadQueryHistory(){try{const e=localStorage.getItem("faiss-rag-query-history");e&&(this.queryHistory=JSON.parse(e),this.queryHistoryComponent.updateHistory(this.queryHistory))}catch(e){console.error("Failed to load query history:",e)}}saveQueryHistory(){try{const e=this.queryHistory.slice(0,50);localStorage.setItem("faiss-rag-query-history",JSON.stringify(e))}catch(e){console.error("Failed to save query history:",e)}}}document.addEventListener("DOMContentLoaded",()=>{const l=document.getElementById("root");new x(l)});
 //# sourceMappingURL=index-DBhzJDZb.js.map
