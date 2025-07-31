@@ -34,6 +34,15 @@ def print_mem_use(label=""):
     mem_mb = mem_bytes / 1024 / 1024
     print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
 
+
+
+def extract_keywords(text):
+    # Remove punctuation but preserve words like "GPT-3" or "smart-home"
+    text = re.sub(r'[^\w\s\-]', '', text)
+    words = text.lower().split()
+    generic = {"tell", "me", "more", "about", "what", "is", "are", "the", "a", "an", "explain", "does", "how"}
+    return [w for w in words if w not in generic]
+
 # Function to measure delaydef log_latency_breakdown(t0, t1, t2, t3, t4):
 def log_latency_breakdown(t0, t1, t2, t3, t4):
     try:
@@ -476,6 +485,10 @@ class IVFPQIndexer(object):
                     if len(text.split()) < 50:
                         continue
                     if self.is_redundant(seen_texts, text):
+                        continue
+                    query_keywords = extract_keywords(raw_queries[i])
+                    text_clean = re.sub(r'[^\w\s\-]', '', text).lower()
+                    if not any(kw in text_clean for kw in query_keywords):
                         continue
                     seen_texts.append(text)
                     unique.append(passage)
