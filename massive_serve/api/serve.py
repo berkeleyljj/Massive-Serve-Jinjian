@@ -218,7 +218,7 @@ def home():
 
 @app.route('/ui')
 def serve_ui():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('.', 'backup.html')
 
 def find_free_port():
     with socket.socket() as s:

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compact-DS Dive</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f7f9fc;
+    }
+    .rounded-highlight {
+      background-color: #fff8b3;
+      border-radius: 0.5rem;
+      padding: 0 0.3em;
+    }
+    .toggle-switch {
+      width: 40px;
+      height: 20px;
+      background-color: #d1d5db;
+      border-radius: 9999px;
+      position: relative;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    .toggle-switch.enabled {
+      background-color: #14b8a6;
+    }
+    .toggle-switch-thumb {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background-color: white;
+      border-radius: 9999px;
+      transition: transform 0.3s ease;
+    }
+    .toggle-switch.enabled .toggle-switch-thumb {
+      transform: translateX(20px);
+    }
+    .sidebar-item {
+      cursor: pointer;
+      border-bottom-width: 1px;
+      border-color: rgb(229 231 235);
+      padding: 0.75rem;
+      transition: color, background-color, border-color, text-decoration-color, fill, stroke;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      transition-duration: 0.2s;
+    }
+    .sidebar-item:hover {
+      background-color: rgb(243 244 246);
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+    
+    /* Drop Pod Animation */
+    @keyframes dropPod {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+    
+    .drop-pod-animation {
+      animation: dropPod 3s ease-in-out infinite;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="welcomeMessage" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-gray-700 pointer-events-none">
+    <img src="./styles/pod.jpg" alt="Icon" class="w-24 h-24 mb-4 drop-pod-animation" />
+    <h2 class="text-4xl font-bold mb-2">Dive into Compact-DS!</h2>
+    <p class="text-base text-gray-700">Query and cast your valuable vote for relevance!</p>
+  </div>
+
+  <!-- Centered Search Group -->
+  <div id="centeredSearchGroup" class="fixed bottom-4 left-0 right-0 flex justify-center pointer-events-none z-20">
+    <div class="pointer-events-auto bg-white rounded-xl shadow-lg p-4 border">
+      <div class="flex flex-wrap items-center gap-3 justify-center">
+        <div class="relative">
+          <button id="toggleParamsBtn" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md font-medium">
+            Parameters
+          </button>
+          <div id="paramPanel" class="hidden absolute bottom-full mb-2 bg-white border rounded-lg shadow-lg p-4 w-[360px] space-y-4">
+            <!-- nprobe, k, rerank, diverse, lambda -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">nprobe</label>
+                <div class="relative group">
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    Number of clusters to search during vector search. Higher values improve accuracy.
+                  </div>
+                </div>
+              </div>
+              <select id="nprobe" class="border rounded-md p-1 text-sm w-24">
+                <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option><option>256</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">k</label>
+                <div class="relative group">
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    Number of top passages to retrieve.
+                  </div>
+                </div>
+              </div>
+              <select id="k" class="border rounded-md p-1 text-sm w-24">
+                <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">Exact Search</label>
+                <div class="relative group">
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    Use exact search instead of ANN. More accurate but slower.
+                  </div>
+                </div>
+              </div>
+              <button id="rerankToggle" class="toggle-switch disabled" data-exact-rerank>
+                <span class="toggle-switch-thumb"></span>
+              </button>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">Diverse Search</label>
+                <div class="relative group">
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    Enables diverse search to avoid similar results with MMR algorithm.
+                  </div>
+                </div>
+              </div>
+              <button id="diverseToggle" class="toggle-switch disabled" data-diverse-search>
+                <span class="toggle-switch-thumb"></span>
+              </button>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">λ (lambda)</label>
+                <div class="relative group">
+                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
+                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                    Diversity tradeoff parameter: higher values favor diversity, lower values prioritize relevance.
+                  </div>
+                </div>
+              </div>
+              <select id="lambda" class="border rounded-md p-1 text-sm w-24 bg-white" disabled>
+                <option value="0.1">0.1</option>
+                <option value="0.3">0.3</option>
+                <option value="0.5" selected>0.5</option>
+                <option value="0.7">0.7</option>
+                <option value="0.9">0.9</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <input id="queryInput" type="text" placeholder="Enter your query here" class="border rounded-xl p-2 flex-grow min-w-[500px] max-w-[70%]" />
+        <button id="sendButton" class="shrink-0 bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700 flex items-center justify-center w-[80px]">
+          <span id="sendButtonText">Send</span>
+        </button>
+        <svg id="loadingSpinner" class="hidden animate-spin w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Panel Sidebar -->
+  <div id="historySidebar" class="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 flex flex-col z-30">
+    <div class="p-4 border-b border-gray-200">
+      <h1 class="text-xl font-semibold text-gray-700">Query History</h1>
+    </div>
+    <div id="queryHistory" class="flex-1 overflow-y-auto">
+      <p class="p-4 text-gray-500 text-sm">No search history yet</p>
+    </div>
+  </div>
+
+  <!-- Main Content Area (adjusted for sidebar) -->
+  <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-80">
+    <!-- Rounded Header -->
+    <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-80 right-0 z-20">
+      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Dive</h1>
+    </header>
+    
+    <!-- Main results container that scrolls till the top edge -->
+    <main class="pt-32 px-6 mb-36 overflow-y-auto max-h-[calc(100vh-112px)]" id="results"></main>
+
+
+
+  </div>
+
+  <script>
+    // Query History Management
+    let queryHistory = [];
+
+    // Load query history from localStorage
+    function loadQueryHistory() {
+      try {
+        const saved = localStorage.getItem('faiss-rag-query-history');
+        if (saved) {
+          queryHistory = JSON.parse(saved);
+          renderQueryHistory();
+        }
+      } catch (error) {
+        console.error('Failed to load query history:', error);
+      }
+    }
+
+    // Save query history to localStorage
+    function saveQueryHistory() {
+      try {
+        const toSave = queryHistory.slice(0, 50); // Keep only last 50 queries
+        localStorage.setItem('faiss-rag-query-history', JSON.stringify(toSave));
+      } catch (error) {
+        console.error('Failed to save query history:', error);
+      }
+    }
+
+    // Add query to history
+    function addToHistory(query, results, searchParams, latency) {
+      const historyItem = {
+        id: Date.now(),
+        query: query,
+        timestamp: new Date().toISOString(),
+        results: results,
+        searchParams: searchParams,
+        latency: latency
+      };
+      queryHistory.unshift(historyItem);
+      saveQueryHistory();
+      renderQueryHistory();
+    }
+
+    // Render query history
+    function renderQueryHistory() {
+      const container = document.getElementById('queryHistory');
+      if (queryHistory.length === 0) {
+        container.innerHTML = '<p class="p-4 text-gray-500 text-sm">No search history yet</p>';
+        return;
+      }
+
+      container.innerHTML = queryHistory.map(item => renderHistoryItem(item)).join('');
+      attachHistoryEventListeners();
+    }
+
+    // Render individual history item
+    function renderHistoryItem(item) {
+      const date = new Date(item.timestamp).toLocaleDateString();
+      const time = new Date(item.timestamp).toLocaleTimeString();
+      
+      return `
+        <div class="sidebar-item group hover:bg-gray-100 cursor-pointer" data-id="${item.id}" data-select-query>
+          <div class="flex justify-between items-start">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 truncate">${item.query}</div>
+              <div class="text-xs text-gray-500 mt-1">${date} ${time}</div>
+              ${item.latency ? `<div class="text-xs text-gray-400">${item.latency}s</div>` : ''}
+            </div>
+            <div class="hidden group-hover:flex gap-1 ml-2">
+              <button data-delete-query class="text-xs text-red-500 hover:text-red-700">Delete</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Attach event listeners to history items
+    function attachHistoryEventListeners() {
+                   // Select query
+      document.querySelectorAll('[data-select-query]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          // Don't trigger if clicking on delete button
+          if (e.target.closest('[data-delete-query]')) {
+            return;
+          }
+          
+          const id = parseInt(e.target.closest('[data-id]').dataset.id);
+          const item = queryHistory.find(h => h.id === id);
+          if (item) {
+            document.getElementById('queryInput').value = item.query;
+            displayResults(item.results, item.query, item.searchParams, item.latency);
+          }
+        });
+      });
+
+
+
+      // Delete query
+      document.querySelectorAll('[data-delete-query]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = parseInt(e.target.closest('[data-id]').dataset.id);
+          const deletedItem = queryHistory.find(h => h.id === id);
+          
+          // Check if we're currently viewing this deleted item
+          const currentQuery = document.getElementById('queryInput').value;
+          const isCurrentlyViewing = deletedItem && currentQuery === deletedItem.query;
+          
+          // Remove from history
+          queryHistory = queryHistory.filter(h => h.id !== id);
+          saveQueryHistory();
+          renderQueryHistory();
+          
+          // If we're currently viewing the deleted item, clear the page and show welcome
+          if (isCurrentlyViewing) {
+            // Clear the query input
+            document.getElementById('queryInput').value = '';
+            
+            // Clear the results
+            document.getElementById('results').innerHTML = '';
+            
+            // Show welcome message, title, and centered search group
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            const centeredSearchGroup = document.getElementById('centeredSearchGroup');
+            const header = document.querySelector('header');
+            if (welcomeMessage) {
+              welcomeMessage.style.display = 'flex';
+            }
+            if (centeredSearchGroup) {
+              centeredSearchGroup.style.display = 'flex';
+            }
+            if (header) {
+              header.style.display = 'flex';
+            }
+          }
+        });
+      });
+
+
+    }
+
+    // Loading state management
+    function setLoading(loading) {
+      const sendButton = document.getElementById('sendButton');
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      
+      if (loading) {
+        sendButton.classList.add('hidden');
+        loadingSpinner.classList.remove('hidden');
+      } else {
+        sendButton.classList.remove('hidden');
+        loadingSpinner.classList.add('hidden');
+      }
+    }
+
+          // Display results (existing function, enhanced)
+    function displayResults(data, query, searchParams, latency) {
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+      
+      // Hide welcome message and title when displaying results
+      const welcomeMessage = document.getElementById('welcomeMessage');
+      const header = document.querySelector('header');
+      if (welcomeMessage) {
+        welcomeMessage.style.display = 'none';
+      }
+      if (header) {
+        header.style.display = 'none';
+      }
+      // Do NOT hide the search group here!
+      
+      // Add query and parameter display at the top (fixed position)
+      if (query) {
+        const nprobe = searchParams?.nprobe || document.getElementById('nprobe').value;
+        const k = searchParams?.k || document.getElementById('k').value;
+        const useRerank = searchParams?.useRerank !== undefined ? searchParams.useRerank : document.getElementById('rerankToggle').classList.contains('enabled');
+        const useDiverse = searchParams?.useDiverse !== undefined ? searchParams.useDiverse : document.getElementById('diverseToggle').classList.contains('enabled');
+        const lambdaVal = searchParams?.lambdaVal || document.getElementById('lambda').value;
+        
+        const queryDisplay = document.createElement('div');
+        queryDisplay.className = "text-gray-700 text-lg font-medium mb-4 bg-[#f7f9fc] py-3 px-4 shadow-sm rounded-lg fixed top-0 left-80 right-6 z-20";
+        queryDisplay.innerHTML = `
+          <div>Query: <span class="font-semibold">${query}</span></div>
+          <div class="flex gap-2 mt-2 flex-wrap" id="queryMeta">
+            <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">nprobe: ${nprobe}</span>
+            <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">k: ${k}</span>
+            ${useRerank ? '<span class="bg-teal-100 text-teal-700 text-sm px-2 py-1 rounded-full">Exact Search</span>' : ''}
+            ${useDiverse ? '<span class="bg-blue-100 text-blue-700 text-sm px-2 py-1 rounded-full">Diverse Search</span>' : ''}
+            ${useDiverse ? `<span class="bg-blue-100 text-blue-700 text-sm px-2 py-1 rounded-full">λ: ${lambdaVal}</span>` : ''}
+            ${latency ? `<span class="bg-green-100 text-green-700 text-sm px-2 py-1 rounded-full flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>${latency}s</span>` : ''}
+          </div>
+        `;
+        container.appendChild(queryDisplay);
+      }
+      
+      const passages = data?.results?.passages?.[0] || [];
+
+      if (passages.length > 0) {
+        passages.forEach((p, i) => {
+          const div = document.createElement('div');
+          div.className = 'bg-white p-4 rounded-2xl shadow-md mb-4 relative';
+          div.setAttribute('data-passage-id', p.index_id || i);
+          div.innerHTML = `
+            <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span></div>
+            <div class='text-gray-900 leading-relaxed mb-4' data-original-text="${escapeHtml(p.text)}">${p.text}</div>
+            
+            <!-- Show More/Less Section -->
+            <div class="mt-4 pt-4 border-t border-gray-200">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <button 
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm transition-colors"
+                    data-show-more
+                    data-index-id="${p.index_id || i}"
+                    data-offset="1"
+                  >
+                    Show More
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Rating Feedback Section -->
+            <div class="absolute bottom-4 right-4 flex items-center space-x-1">
+                <span class="text-base font-semibold text-blue-600">Is this passage relevant?</span>
+                <button 
+                    onclick="this.parentElement.innerHTML='<span class=\\'text-sm text-green-600 font-medium\\'>✓ Thanks for the feedback!</span>'"
+                    class="text-sm font-semibold text-blue-600 hover:text-green-600 transition-colors px-1.5 py-0.5"
+                    title="Yes, this passage is relevant"
+                >
+                    [YES]
+                </button>
+                <button 
+                    onclick="this.parentElement.innerHTML='<span class=\\'text-sm text-red-600 font-medium\\'>✗ Thanks for the feedback!</span>'"
+                    class="text-sm font-semibold text-blue-600 hover:text-red-600 transition-colors px-1.5 py-0.5"
+                    title="No, this passage is not relevant"
+                >
+                    [NO]
+                </button>
+                </div>
+          `;
+          container.appendChild(div);
+        });
+        
+        // Attach event listeners for Show More/Less functionality
+        attachShowMoreListeners();
+      } else {
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.className = 'bg-red-50 border border-red-300 text-red-700 p-6 rounded-2xl shadow-md text-center max-w-2xl mx-auto mt-10';
+        noResultsDiv.innerHTML = `
+          <h3 class="text-2xl font-semibold mb-2"> Oops!</h3>
+          <p class="mb-4">We couldn't find enough results for your query.</p>
+          <p class="text-sm text-red-600">Please try:</p>
+          <ul class="text-sm list-disc list-inside mt-2 text-red-600">
+            <li>Rephrasing your question with more details</li>
+            <li>Changing the search parameters</li>
+          </ul>
+        `;
+        container.appendChild(noResultsDiv);
+      }
+    }
+
+    // Event listeners
+    document.getElementById('toggleParamsBtn').addEventListener('click', () => {
+      document.getElementById('paramPanel').classList.toggle('hidden');
+    });
+
+    document.getElementById('rerankToggle').addEventListener('click', function () {
+      this.classList.toggle('enabled');
+      this.classList.toggle('disabled');
+    });
+
+    document.getElementById('diverseToggle').addEventListener('click', function () {
+      this.classList.toggle('enabled');
+      this.classList.toggle('disabled');
+      toggleLambdaState();
+    });
+
+    document.getElementById('queryInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        submitQuery(true);
+      }
+    });
+
+    document.getElementById('sendButton').addEventListener('click', function () {
+      submitQuery(true);
+    });
+
+    function toggleLambdaState() {
+      const lambda = document.getElementById('lambda');
+      const diverse = document.getElementById('diverseToggle');
+      const enabled = diverse.classList.contains('enabled');
+      lambda.disabled = !enabled;
+      lambda.classList.toggle('bg-gray-100', !enabled);
+    }
+
+    async function submitQuery(addToHist) {
+      const query = document.getElementById('queryInput').value.trim();
+      const nprobe = document.getElementById('nprobe').value;
+      const k = document.getElementById('k').value;
+      const useRerank = document.getElementById('rerankToggle').classList.contains('enabled');
+      const useDiverse = document.getElementById('diverseToggle').classList.contains('enabled');
+      const lambdaVal = parseFloat(document.getElementById('lambda').value);
+      
+      if (!query) return;
+      
+      const container = document.getElementById('results');
+      // Hide welcome message when starting search
+      const welcomeMessage = document.getElementById('welcomeMessage');
+      if (welcomeMessage) {
+        welcomeMessage.style.display = 'none';
+      }
+      container.innerHTML = '';
+      
+      // Show loading state
+      setLoading(true);
+      
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = "text-gray-500 text-sm flex items-center gap-2";
+      loadingMsg.innerHTML = `
+        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Searching...
+      `;
+      container.appendChild(loadingMsg);
+      
+      const startTime = performance.now();
+      
+      try {
+        const response = await fetch(`http://192.222.59.156:30888/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            nprobe: parseInt(nprobe),
+            n_docs: parseInt(k),
+            use_rerank: useRerank,
+            use_diverse: useDiverse,
+            lambda: lambdaVal
+          })
+        });
+        
+        const data = await response.json();
+        const endTime = performance.now();
+        const latency = ((endTime - startTime) / 1000).toFixed(2);
+        
+        container.innerHTML = '';
+        
+                 if (addToHist) {
+           const searchParams = { nprobe, k, useRerank, useDiverse, lambdaVal };
+           addToHistory(query, data, searchParams, latency);
+         }
+         
+         displayResults(data, query, { nprobe, k, useRerank, useDiverse, lambdaVal }, latency);
+        
+      } catch (err) {
+        container.innerHTML = '<div class="text-red-500 text-sm">Error fetching result.</div>';
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Show More/Less functionality
+    let expandedPassages = new Set();
+    let expandedPassagesData = new Map();
+
+    function attachShowMoreListeners() {
+      document.querySelectorAll('[data-show-more]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const indexId = parseInt(e.target.dataset.indexId);
+          const offset = parseInt(e.target.dataset.offset);
+          
+          if (expandedPassages.has(indexId)) {
+            // Collapse - restore original text
+            expandedPassages.delete(indexId);
+            e.target.textContent = 'Show More';
+            e.target.dataset.offset = '1';
+            removeExpandedPassages(indexId);
+            
+            const passageDiv = e.target.closest('.bg-white');
+            const textDiv = passageDiv.querySelector('[data-original-text]');
+            if (textDiv) {
+              textDiv.innerHTML = textDiv.getAttribute('data-original-text');
+            }
+            
+            // Scroll to top of the passage
+            const resultsContainer = document.getElementById('results');
+            const passageTop = passageDiv.offsetTop;
+            const containerTop = resultsContainer.offsetTop;
+            const scrollTarget = passageTop - containerTop - 120;
+            
+            resultsContainer.scrollTo({
+              top: scrollTarget,
+              behavior: 'smooth'
+            });
+          } else {
+            expandedPassages.add(indexId);
+            e.target.textContent = 'Show Less';
+            try {
+              const expandedData = await expandPassage(indexId, offset);
+              if (expandedData && expandedData.results && expandedData.results.passages) {
+                const expandedPassagesData = expandedData.results.passages[0] || [];
+                setExpandedPassages(indexId, expandedPassagesData);
+                
+                // Replace text in place with expanded content
+                const passageDiv = e.target.closest('.bg-white');
+                const textDiv = passageDiv.querySelector('[data-original-text]');
+                if (textDiv && expandedPassagesData.length > 0) {
+                  const originalText = textDiv.getAttribute('data-original-text');
+                  const expandedText = expandedPassagesData[0].text;
+                  
+                  // Add green underline to original passage
+                  const highlightedText = highlightOriginalText(expandedText, originalText);
+                  textDiv.innerHTML = highlightedText;
+                  textDiv.setAttribute('data-expanded-text', highlightedText);
+                }
+                
+                const newOffset = (parseInt(e.target.dataset.offset) || 1) + 1;
+                e.target.dataset.offset = newOffset;
+                if (newOffset > 3) {
+                  e.target.disabled = true;
+                  e.target.classList.add('text-gray-400', 'cursor-not-allowed');
+                  e.target.classList.remove('hover:bg-gray-200');
+                  e.target.textContent = 'Expansion limit reached';
+                }
+              }
+            } catch (error) {
+              console.error('Expand error:', error);
+              e.target.textContent = 'Show More';
+              expandedPassages.delete(indexId);
+            }
+          }
+        });
+      });
+    }
+
+    async function expandPassage(indexId, offset) {
+      try {
+        const response = await fetch(`http://192.222.59.156:30888/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: '',
+            expand_index_id: indexId,
+            expand_offset: offset
+          })
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('Expand request failed:', error);
+        throw error;
+      }
+    }
+
+    function setExpandedPassages(indexId, passages) {
+      expandedPassagesData.set(indexId, passages);
+    }
+
+    function getExpandedPassages(indexId) {
+      return expandedPassagesData.get(indexId) || [];
+    }
+
+    function removeExpandedPassages(indexId) {
+      expandedPassagesData.delete(indexId);
+    }
+
+    // Helper functions
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function highlightOriginalText(expandedText, originalText) {
+      const escapedExpanded = escapeHtml(expandedText);
+      const escapedOriginal = escapeHtml(originalText);
+
+      // Attempt exact substring match
+      if (escapedExpanded.includes(escapedOriginal)) {
+        return escapedExpanded.replace(
+          escapedOriginal,
+          `<span class="border-b-2 border-green-500">${escapedOriginal}</span>`
+        );
+      }
+
+      // Fallback: do not highlight
+      console.warn("Exact match for original passage not found in expanded text");
+      return escapedExpanded;
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadQueryHistory();
+      const welcomeMessage = document.getElementById('welcomeMessage');
+      const centeredSearchGroup = document.getElementById('centeredSearchGroup');
+      if (welcomeMessage) welcomeMessage.style.display = 'flex';
+      if (centeredSearchGroup) centeredSearchGroup.style.display = 'flex';
+    });
+  </script>
+</body>
+</html>
