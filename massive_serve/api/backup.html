@@ -79,6 +79,51 @@
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
     }
+    
+    /* Lambda Slider Styling */
+    .slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    
+    .slider::-webkit-slider-track {
+      background: #e5e7eb;
+      height: 8px;
+      border-radius: 4px;
+    }
+    
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #14b8a6;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    
+    .slider::-moz-range-track {
+      background: #e5e7eb;
+      height: 8px;
+      border-radius: 4px;
+      border: none;
+    }
+    
+    .slider::-moz-range-thumb {
+      background: #14b8a6;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+    
+    .slider:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -171,13 +216,10 @@
                   </div>
                 </div>
               </div>
-              <select id="lambda" class="border rounded-md p-1 text-sm w-24 bg-white" disabled>
-                <option value="0.1">0.1</option>
-                <option value="0.3">0.3</option>
-                <option value="0.5" selected>0.5</option>
-                <option value="0.7">0.7</option>
-                <option value="0.9">0.9</option>
-              </select>
+              <div class="flex items-center gap-2 w-32">
+                <input type="range" id="lambda" min="0" max="100" value="50" step="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider" disabled>
+                <span id="lambdaValue" class="text-sm text-gray-600 w-8 text-right">0.50</span>
+              </div>
             </div>
           </div>
         </div>
@@ -426,7 +468,7 @@
           div.setAttribute('data-passage-id', p.index_id || i);
           div.innerHTML = `
             <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span></div>
-            <div class='text-gray-900 leading-relaxed mb-4' data-original-text="${escapeHtml(p.text)}">${p.text}</div>
+            <div class='text-gray-900 leading-relaxed mb-4' data-original-raw="${p.text.replace(/"/g, '&quot;')}">${escapeHtml(p.text)}</div>
             
             <!-- Show More/Less Section -->
             <div class="mt-4 pt-4 border-t border-gray-200">
@@ -530,11 +572,22 @@
 
     function toggleLambdaState() {
       const lambda = document.getElementById('lambda');
+      const lambdaValue = document.getElementById('lambdaValue');
       const diverse = document.getElementById('diverseToggle');
       const enabled = diverse.classList.contains('enabled');
       lambda.disabled = !enabled;
-      lambda.classList.toggle('bg-gray-100', !enabled);
+      if (!enabled) {
+        lambdaValue.classList.add('text-gray-400');
+      } else {
+        lambdaValue.classList.remove('text-gray-400');
+      }
     }
+
+    // Lambda slider event listener
+    document.getElementById('lambda').addEventListener('input', function() {
+      const value = parseFloat(this.value) / 100;
+      document.getElementById('lambdaValue').textContent = value.toFixed(2);
+    });
 
     async function submitQuery(addToHist) {
       // Hide parameter panel when submitting query
@@ -545,7 +598,7 @@
       const k = document.getElementById('k').value;
       const useRerank = document.getElementById('rerankToggle').classList.contains('enabled');
       const useDiverse = document.getElementById('diverseToggle').classList.contains('enabled');
-      const lambdaVal = parseFloat(document.getElementById('lambda').value);
+      const lambdaVal = parseFloat(document.getElementById('lambda').value) / 100;
       
       if (!query) return;
       
@@ -626,9 +679,10 @@
             removeExpandedPassages(indexId);
             
             const passageDiv = e.target.closest('.bg-white');
-            const textDiv = passageDiv.querySelector('[data-original-text]');
+            const textDiv = passageDiv.querySelector('[data-original-raw]');
             if (textDiv) {
-              textDiv.innerHTML = textDiv.getAttribute('data-original-text');
+              const originalRaw = textDiv.getAttribute('data-original-raw');
+              textDiv.innerHTML = originalRaw;
             }
             
             // Scroll to top of the passage
@@ -642,8 +696,16 @@
               behavior: 'smooth'
             });
           } else {
+            // Immediate UI feedback
             expandedPassages.add(indexId);
-            e.target.textContent = 'Show Less';
+            e.target.textContent = 'Loading...';
+            e.target.disabled = true;
+            
+            // Cache DOM elements to avoid repeated queries
+            const passageDiv = e.target.closest('.bg-white');
+            const textDiv = passageDiv.querySelector('[data-original-raw]');
+            const originalRaw = textDiv.getAttribute('data-original-raw');
+            
             try {
               const expandedData = await expandPassage(indexId, offset);
               if (expandedData && expandedData.results && expandedData.results.passages) {
@@ -651,20 +713,20 @@
                 setExpandedPassages(indexId, expandedPassagesData);
                 
                 // Replace text in place with expanded content
-                const passageDiv = e.target.closest('.bg-white');
-                const textDiv = passageDiv.querySelector('[data-original-text]');
                 if (textDiv && expandedPassagesData.length > 0) {
-                  const originalText = textDiv.getAttribute('data-original-text');
                   const expandedText = expandedPassagesData[0].text;
                   
-                  // Add green underline to original passage
-                  const highlightedText = highlightOriginalText(expandedText, originalText);
+                  // Optimized highlighting - only process if needed
+                  const highlightedText = highlightOriginalTextOptimized(expandedText, originalRaw);
                   textDiv.innerHTML = highlightedText;
                   textDiv.setAttribute('data-expanded-text', highlightedText);
                 }
                 
                 const newOffset = (parseInt(e.target.dataset.offset) || 1) + 1;
                 e.target.dataset.offset = newOffset;
+                e.target.textContent = 'Show Less';
+                e.target.disabled = false;
+                
                 if (newOffset > 3) {
                   e.target.disabled = true;
                   e.target.classList.add('text-gray-400', 'cursor-not-allowed');
@@ -675,6 +737,7 @@
             } catch (error) {
               console.error('Expand error:', error);
               e.target.textContent = 'Show More';
+              e.target.disabled = false;
               expandedPassages.delete(indexId);
             }
           }
@@ -733,6 +796,32 @@
 
       // Fallback: do not highlight
       console.warn("Exact match for original passage not found in expanded text");
+      return escapedExpanded;
+    }
+
+    // Optimized version with early exit and caching
+    function highlightOriginalTextOptimized(expandedText, originalText) {
+      // Early exit if texts are identical
+      if (expandedText === originalText) {
+        return `<span class="border-b-2 border-green-500">${escapeHtml(originalText)}</span>`;
+      }
+      
+      // Quick check if original text is contained in expanded text
+      if (!expandedText.includes(originalText)) {
+        return escapeHtml(expandedText);
+      }
+      
+      // Only escape if we need to highlight
+      const escapedExpanded = escapeHtml(expandedText);
+      const escapedOriginal = escapeHtml(originalText);
+      
+      if (escapedExpanded.includes(escapedOriginal)) {
+        return escapedExpanded.replace(
+          escapedOriginal,
+          `<span class="border-b-2 border-green-500">${escapedOriginal}</span>`
+        );
+      }
+      
       return escapedExpanded;
     }
 
