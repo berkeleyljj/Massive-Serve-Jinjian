@@ -50,26 +50,23 @@ Content-Type: application/json
 
 ### `nprobe` - Search Clusters
 Controls the number of clusters searched during ANN retrieval:
-- **Lower values (1-16)**: Faster but less accurate
-- **Higher values (64-256)**: More accurate but slower
-- **Recommended**: 32 for balanced performance, 64+ for high accuracy
 
 ### `exact_search` - Exact Reranking
 When enabled, performs exact similarity computation instead of approximate search:
-- **Benefits**: Higher accuracy, better accuracy
-- **Trade-offs**: Slower response time, higher computational cost
-- **Use case**: When accuracy is critical over speed
+- **Benefits**: Higher accuracy
+- **Trade-offs**: Slower response time by about 1.5s, higher computational cost. Delay will be reduced on similar search thanks to caching.
 
 ### `diverse_search` - Diverse Results
 Enables diversity-aware result selection to avoid similar passages:
 - **Benefits**: More varied results, better coverage
-- **Trade-offs**: May reduce accuracy for some queries. The diverse algorithm can be harsh on accuracy, so only increase the parameter very sparingly. 
+- **Trade-offs**: May reduce accuracy for some queries and also higher end-to-end delay.
 - **Best with**: `lambda` parameter to control diversity vs accuracy trade-off
 
 ### `lambda` - Diversity Trade-off
 Controls the balance between accuracy and diversity when `diverse_search` is enabled:
 - **0.0**: Maximum accuracy, no diversity
-- **0.2**: Balanced approach -- because of the harshness of the algorithm, we recommend setting lambda to a low value, like 0.2 when enabled. Higher values are for experimental purposes.
+- **0.2-0.3**: Balanced approach -- because of the harshness of the algorithm, we recommend setting lambda to a low value when diverse search is on.
+- Anything higher can be risky, and please be aware to increase only for experimental purposes
 ---
 
 ## 📝 Request Examples
@@ -84,7 +81,7 @@ url = "http://192.222.59.156:30888/search"
 headers = {"Content-Type": "application/json"}
 
 payload = {
-    "query": "machine learning algorithms",
+    "query": "Tell me more about Albert Einstein",
     "n_docs": 5,
     "nprobe": 32
 }
@@ -99,9 +96,8 @@ result = response.json()
 payload = {
     "query": "neural network architecture",
     "n_docs": 3,
-    "nprobe": 128,
-    "exact_search": True,
-    "lambda": 0.3
+    "nprobe": 256,
+    "exact_search": True
 }
 ```
 
@@ -112,7 +108,7 @@ payload = {
     "query": "artificial intelligence applications",
     "n_docs": 5,
     "diverse_search": True,
-    "lambda": 0.6
+    "lambda": 0.2
 }
 ```
 
