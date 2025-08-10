@@ -1,8 +1,8 @@
-# Compact-DS Search API Documentation
+# Compact-DS Dive Documentation
 
 ## 🚀 Overview
 
-**Compact-DS** is a high-performance document search and retrieval system that combines approximate nearest neighbor (ANN) search with Exact and Diverse Search capabilities. This demo showcases flexible search techniques: configurable search parameters, different search options, history caching, and context expansion.
+**Compact-Ds Dive** is a easy-to-use RAG UI backed by a billion-scale high-quality datastore. Compact-DS Dive combines approximate nearest neighbor (ANN) search with Exact and Diverse Search capabilities. This demo showcases flexible search techniques: configurable search parameters, different search options, history caching, and context expansion.
 
 ### Key Features
 - **Fast ANN Search**: Efficient approximate search using IVF-PQ indexing
