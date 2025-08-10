@@ -2,12 +2,12 @@
 
 ## 🚀 Overview
 
-**Compact-DS** is a high-performance document search and retrieval system that combines approximate nearest neighbor (ANN) search with exact reranking capabilities. This demo showcases advanced search techniques including diverse result selection and configurable search parameters.
+**Compact-DS** is a high-performance document search and retrieval system that combines approximate nearest neighbor (ANN) search with Exact and Diverse Search capabilities. This demo showcases flexible search techniques: configurable search parameters, different search options, history caching, and context expansion.
 
 ### Key Features
 - **Fast ANN Search**: Efficient approximate search using IVF-PQ indexing
-- **Exact Reranking**: Optional exact similarity computation for higher accuracy
-- **Diverse Results**: Configurable diversity to avoid similar passages
+- **Exact Reranking**: Optional exact similarity computation for higher accuracy. Note: we integrated retrieval results caching, so similar queries will have lower delay only on the second Exact Search and afterwards.
+- **Diverse Results**: Configurable diversity to avoid similar passages.
 - **Batched Queries**: Support for processing multiple queries simultaneously
 - **Real-time Performance**: Optimized for low-latency search operations
 
@@ -43,12 +43,6 @@ Content-Type: application/json
 | `diverse_search` | boolean | false | true/false | Use diverse search to avoid similar results |
 | `lambda` | float | 0.5 | 0.0-1.0 | Diversity tradeoff parameter (higher = more diverse, lower = more relevant) |
 
-### Special Parameters
-
-| Parameter | Type | Description | Use Case |
-|-----------|------|-------------|----------|
-| `expand_index_id` | integer | ID of passage to expand | Get more context around a specific passage |
-| `expand_offset` | integer | 1 | Expansion offset for passage expansion |
 
 ---
 
@@ -62,22 +56,20 @@ Controls the number of clusters searched during ANN retrieval:
 
 ### `exact_search` - Exact Reranking
 When enabled, performs exact similarity computation instead of approximate search:
-- **Benefits**: Higher accuracy, better relevance
+- **Benefits**: Higher accuracy, better accuracy
 - **Trade-offs**: Slower response time, higher computational cost
 - **Use case**: When accuracy is critical over speed
 
 ### `diverse_search` - Diverse Results
 Enables diversity-aware result selection to avoid similar passages:
 - **Benefits**: More varied results, better coverage
-- **Trade-offs**: May reduce relevance for some queries
-- **Best with**: `lambda` parameter to control diversity vs relevance trade-off
+- **Trade-offs**: May reduce accuracy for some queries. The diverse algorithm can be harsh on accuracy, so only increase the parameter very sparingly. 
+- **Best with**: `lambda` parameter to control diversity vs accuracy trade-off
 
 ### `lambda` - Diversity Trade-off
-Controls the balance between relevance and diversity when `diverse_search` is enabled:
-- **0.0**: Maximum relevance, no diversity
-- **0.5**: Balanced approach (default)
-- **1.0**: Maximum diversity, may reduce relevance
-
+Controls the balance between accuracy and diversity when `diverse_search` is enabled:
+- **0.0**: Maximum accuracy, no diversity
+- **0.2**: Balanced approach -- because of the harshness of the algorithm, we recommend setting lambda to a low value, like 0.2 when enabled. Higher values are for experimental purposes.
 ---
 
 ## 📝 Request Examples
@@ -98,8 +90,7 @@ payload = {
 }
 
 response = requests.post(url, headers=headers, json=payload)
-data = response.json()
-print(f"Found {len(data['results']['passages'][0])} passages")
+result = response.json()
 ```
 
 ### 2. High-Accuracy Search
@@ -109,7 +100,8 @@ payload = {
     "query": "neural network architecture",
     "n_docs": 3,
     "nprobe": 128,
-    "exact_search": True
+    "exact_search": True,
+    "lambda": 0.3
 }
 ```
 
@@ -120,7 +112,7 @@ payload = {
     "query": "artificial intelligence applications",
     "n_docs": 5,
     "diverse_search": True,
-    "lambda": 0.7
+    "lambda": 0.6
 }
 ```
 
@@ -136,30 +128,10 @@ payload = {
     "n_docs": 3,
     "exact_search": True,
     "diverse_search": True,
-    "lambda": 0.6
+    "lambda": 0.2
 }
 ```
 
-### 5. Passage Expansion
-
-```python
-# First, get a passage ID from a search
-search_payload = {
-    "query": "deep learning",
-    "n_docs": 1
-}
-search_response = requests.post(url, headers=headers, json=search_payload)
-search_data = search_response.json()
-passage_id = search_data['results']['passages'][0][0]['index_id']
-
-# Then expand that passage
-expand_payload = {
-    "query": "",
-    "expand_index_id": passage_id,
-    "expand_offset": 1
-}
-expand_response = requests.post(url, headers=headers, json=expand_payload)
-```
 
 ---
 
@@ -219,7 +191,7 @@ expand_response = requests.post(url, headers=headers, json=expand_payload)
 ```python
 payload = {
     "query": "your query",
-    "nprobe": 16,           # Lower nprobe
+    "nprobe": ...,           # nprobe has minimal impact on delay
     "exact_search": False,  # Disable exact search
     "diverse_search": False # Disable diverse search
 }
@@ -229,7 +201,7 @@ payload = {
 ```python
 payload = {
     "query": "your query",
-    "nprobe": 128,          # Higher nprobe
+    "nprobe": 256,          # Higher nprobe
     "exact_search": True,   # Enable exact search
     "diverse_search": False # Keep diverse search off for pure accuracy
 }
@@ -242,7 +214,7 @@ payload = {
     "nprobe": 64,           # Moderate nprobe
     "exact_search": False,  # Optional: can be enabled
     "diverse_search": True, # Enable diverse search
-    "lambda": 0.7          # Higher lambda for more diversity
+    "lambda": 0.5          # High lambda for more diversity
 }
 ```
 
@@ -253,7 +225,7 @@ payload = {
     "nprobe": 32,           # Default nprobe
     "exact_search": False,  # Disable for speed
     "diverse_search": True, # Enable for variety
-    "lambda": 0.5          # Balanced lambda
+    "lambda": 0.25          # Balanced lambda
 }
 ```
 
@@ -332,47 +304,5 @@ if __name__ == "__main__":
     test_api()
 ```
 
----
-
-## ⚠️ Important Notes
-
-1. **Rate Limiting**: Be mindful of request frequency to avoid overwhelming the server
-2. **Query Length**: Very long queries may impact performance
-3. **Parameter Combinations**: Some parameter combinations may not be optimal (e.g., very high `nprobe` with `exact_search`)
-4. **Response Time**: First requests may be slower due to model loading
-5. **Error Handling**: Always check response status codes and handle errors gracefully
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Status 408 (Timeout)**
-- Reduce `nprobe` value
-- Disable `exact_search`
-- Reduce `n_docs`
-
-**Status 500 (Server Error)**
-- Check query format
-- Ensure all parameters are valid
-- Try simpler queries first
-
-**Slow Response**
-- Use lower `nprobe` values
-- Disable `exact_search` for speed
-- Consider batched queries for multiple searches
-
----
-
-## 📞 Support
-
-For issues, questions, or feedback:
-- Check the troubleshooting section above
-- Review parameter optimization guide
-- Test with the provided testing script
-- Contact the development team with specific error messages and request details
-
----
 
 *This documentation covers the Compact-DS Search API v1.0. For updates and additional features, please refer to the latest version.* 
