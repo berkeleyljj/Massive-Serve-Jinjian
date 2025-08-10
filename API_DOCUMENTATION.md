@@ -150,7 +150,7 @@ payload = {
         "index_id": 123456789,
         "passage_id": "passage_123"
       },
-      // ... more passages
+      "... more passages"
     ]]
   }
 }
@@ -166,14 +166,14 @@ payload = {
   "nprobe": 32,
   "results": {
     "scores": [
-      [0.85, 0.82, 0.79],  // Scores for query1
-      [0.88, 0.85, 0.81],  // Scores for query2
-      [0.83, 0.80, 0.77]   // Scores for query3
+      [0.85, 0.82, 0.79],  
+      [0.88, 0.85, 0.81],  
+      [0.83, 0.80, 0.77]   
     ],
     "passages": [
-      [/* passages for query1 */],
-      [/* passages for query2 */],
-      [/* passages for query3 */]
+      [...],
+      [...],
+      [...]
     ]
   }
 }
@@ -210,7 +210,7 @@ payload = {
     "nprobe": 64,           # Moderate nprobe
     "exact_search": False,  # Optional: can be enabled
     "diverse_search": True, # Enable diverse search
-    "lambda": 0.5          # High lambda for more diversity
+    "lambda": 0.5        # High lambda for more diversity
 }
 ```
 
@@ -264,13 +264,13 @@ def test_api():
                 "query": "artificial intelligence",
                 "n_docs": 5,
                 "diverse_search": True,
-                "lambda": 0.7
+                "lambda": 0.3
             }
         },
         {
             "name": "Batched Queries",
             "payload": {
-                "queries": ["quantum computing", "blockchain", "AI ethics"],
+                "queries": ["quantum computing", "Who is Nikola Tesla", "AI ethics"],
                 "n_docs": 2
             }
         }
@@ -299,6 +299,4 @@ def test_api():
 if __name__ == "__main__":
     test_api()
 ```
-
-
 *This documentation covers the Compact-DS Search API v1.0. For updates and additional features, please refer to the latest version.* 
