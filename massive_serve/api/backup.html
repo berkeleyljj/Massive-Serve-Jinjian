@@ -129,7 +129,7 @@
 <body>
 
   <div id="welcomeMessage" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-gray-700 pointer-events-none">
-    <img src="./styles/pod.jpg" alt="Icon" class="w-24 h-24 mb-4 drop-pod-animation" />
+    <img src="./styles/capsule.png" alt="Icon" class="w-64 h-64 mb-4 drop-pod-animation" />
     <h2 class="text-4xl font-bold mb-2">Dive into Compact-DS!</h2>
     <p class="text-base text-gray-700">Query and cast your valuable vote for relevance!</p>
   </div>
@@ -156,7 +156,7 @@
                 <div class="relative group">
                   <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
                   <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Number of clusters to search during vector search. Higher values improve accuracy.
+                    Number of clusters to search. Higher values typically improve accuracy.
                   </div>
                 </div>
               </div>
@@ -198,7 +198,7 @@
                 <div class="relative group">
                   <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
                   <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Enables diverse search to avoid similar results with MMR algorithm.
+                    Use diverse search to avoid similar results but may reduce relevance. Tune the tradeoff with λ.
                   </div>
                 </div>
               </div>
@@ -212,7 +212,7 @@
                 <div class="relative group">
                   <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
                   <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Diversity tradeoff parameter: higher values favor diversity, lower values prioritize relevance.
+                    Diversity tradeoff parameter: higher for diversity, lower for relevance.
                   </div>
                 </div>
               </div>
@@ -518,7 +518,8 @@
           <p class="mb-4">We couldn't find enough results for your query.</p>
           <p class="text-sm text-red-600">Please try:</p>
           <ul class="text-sm list-disc list-inside mt-2 text-red-600">
-            <li>Rephrasing your question with more details</li>
+            <li>Adding more details</li>
+            <li>Rephrasing your query</li>
             <li>Changing the search parameters</li>
           </ul>
         `;
@@ -634,8 +635,10 @@
             query,
             nprobe: parseInt(nprobe),
             n_docs: parseInt(k),
-            use_rerank: useRerank,
-            use_diverse: useDiverse,
+            // use_rerank: useRerank,  // ORIGINAL - commented out
+            // use_diverse: useDiverse,  // ORIGINAL - commented out
+            exact_search: useRerank,
+            diverse_search: useDiverse,
             lambda: lambdaVal
           })
         });

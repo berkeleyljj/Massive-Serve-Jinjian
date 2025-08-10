@@ -146,8 +146,10 @@ def search():
             expand_index_id = request.json.get('expand_index_id'),
             expand_offset = request.json.get('expand_offset', 1),
             domains=ds_cfg.domain_name,
-            exact_rerank = request.json.get('use_rerank', False),
-            use_diverse=request.json.get('use_diverse', False),
+            # exact_rerank = request.json.get('use_rerank', False),  # ORIGINAL - commented out
+            # use_diverse=request.json.get('use_diverse', False),  # ORIGINAL - commented out
+            exact_rerank = request.json.get('exact_search', False),
+            use_diverse=request.json.get('diverse_search', False),
             lambda_val=request.json.get('lambda', 0.5),
         )
 
