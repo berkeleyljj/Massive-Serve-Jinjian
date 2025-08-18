@@ -124,114 +124,104 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+    /* Centered tooltip/help modal */
+    .tooltip-centered {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      z-index: 10000 !important;
+      max-width: 90vw !important;
+      max-height: 80vh !important;
+      overflow-y: auto !important;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+      border: 2px solid #4a5568 !important;
+      padding: 1.25rem !important;
+      border-radius: 0.75rem !important;
+      background: #111827 !important; /* gray-900 */
+      color: #fff !important;
+    }
+    .tooltip-overlay {
+      position: fixed !important;
+      inset: 0 !important;
+      background: rgba(0,0,0,0.5) !important;
+      z-index: 9999 !important;
+    }
   </style>
 </head>
 <body>
 
-  <div id="welcomeMessage" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-gray-700 pointer-events-none">
-    <img src="./styles/capsule.png" alt="Icon" class="w-64 h-64 mb-4 drop-pod-animation" />
-    <h2 class="text-4xl font-bold mb-2">Dive into Compact-DS!</h2>
-    <p class="text-base text-gray-700">Query and cast your valuable vote for relevance!</p>
+  <div id="welcomeMessage" class="absolute inset-0 flex flex-col items-center justify-center text-center px-2 sm:px-4 lg:px-6 text-gray-700 pointer-events-none">
+    <img src="./styles/capsule.png" alt="Icon" class="w-24 h-24 sm:w-32 sm:h-32 lg:w-48 lg:h-48 xl:w-64 xl:h-64 mb-2 sm:mb-4 drop-pod-animation" />
+    <h2 class="text-lg sm:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 sm:mb-2">Dive into Compact-DS!</h2>
+    <p class="text-xs sm:text-sm lg:text-base text-gray-700">Query and cast your valuable vote for relevance!</p>
   </div>
 
   <!-- Centered Search Group -->
-  <div id="centeredSearchGroup" class="fixed bottom-4 left-0 right-0 flex justify-center pointer-events-none z-20">
-    <div class="pointer-events-auto bg-white rounded-xl shadow-lg p-4 border">
-      <div class="flex flex-wrap items-center gap-3 justify-center">
+  <div id="centeredSearchGroup" class="fixed bottom-2 sm:bottom-4 left-2 right-2 sm:left-4 sm:right-4 lg:left-[calc(25%+1rem)] flex justify-center pointer-events-none z-20 overflow-visible">
+    <div class="pointer-events-auto bg-white rounded-xl shadow-lg p-2 sm:p-3 lg:p-4 border w-full max-w-5xl overflow-visible">
+      <div class="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 lg:gap-3 justify-center">
         <div class="relative">
-          <button id="toggleParamsBtn" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md font-medium flex items-center gap-1">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+          <button id="toggleParamsBtn" class="text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 px-2 sm:px-3 py-1 sm:py-2 rounded-md font-medium flex items-center gap-1">
+            <svg class="w-3 h-3 sm:w-4 sm:h-4 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
               <rect x="4" y="6" width="16" height="12" rx="2"/>
               <line x1="8" y1="10" x2="16" y2="10"/>
               <line x1="8" y1="14" x2="12" y2="14"/>
               <circle cx="18" cy="12" r="1"/>
             </svg>
-            Parameters
+            <span class="hidden sm:inline">Parameters</span>
+            <span class="sm:hidden">Params</span>
           </button>
-          <div id="paramPanel" class="hidden absolute bottom-full mb-2 bg-white border rounded-lg shadow-lg p-4 w-[360px] space-y-4">
+          <div id="paramPanel" class="hidden absolute bottom-full left-2 right-2 sm:left-auto sm:right-auto mb-2 bg-white border rounded-lg shadow-lg p-2 sm:p-3 lg:p-4 w-auto sm:w-[320px] lg:w-[360px] space-y-1 sm:space-y-3 lg:space-y-4 max-h-[50vh] sm:max-h-[50vh] overflow-y-auto overflow-x-visible z-30">
+            <!-- Help button (opens centered modal with all descriptions) -->
+            <div class="flex justify-end mb-2">
+              <button id="helpBtn" class="text-xs sm:text-sm bg-blue-100 hover:bg-blue-200 w-6 h-6 sm:w-8 sm:h-8 rounded-full font-medium flex items-center justify-center">
+                ?
+              </button>
+            </div>
             <!-- nprobe, k, rerank, diverse, lambda -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-700">nprobe</label>
-                <div class="relative group">
-                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
-                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Number of clusters to search. Higher values typically improve accuracy.
-                  </div>
-                </div>
-              </div>
-              <select id="nprobe" class="border rounded-md p-1 text-sm w-24">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+              <label class="text-sm font-medium text-gray-700">nprobe</label>
+              <select id="nprobe" class="border rounded-md p-1 text-sm w-full sm:w-24">
                 <option>1</option><option>8</option><option>16</option><option selected>32</option><option>64</option><option>128</option><option>256</option>
               </select>
             </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-700">k</label>
-                <div class="relative group">
-                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
-                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Number of top passages to retrieve.
-                  </div>
-                </div>
-              </div>
-              <select id="k" class="border rounded-md p-1 text-sm w-24">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+              <label class="text-sm font-medium text-gray-700">k</label>
+              <select id="k" class="border rounded-md p-1 text-sm w-full sm:w-24">
                 <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
               </select>
             </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-700">Exact Search</label>
-                <div class="relative group">
-                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
-                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Use exact search instead of ANN. More accurate but slower.
-                  </div>
-                </div>
-              </div>
-              <button id="rerankToggle" class="toggle-switch disabled" data-exact-rerank>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+              <label class="text-sm font-medium text-gray-700">Exact Search</label>
+              <button id="rerankToggle" class="toggle-switch disabled self-start sm:self-auto" data-exact-rerank>
                 <span class="toggle-switch-thumb"></span>
               </button>
             </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-700">Diverse Search</label>
-                <div class="relative group">
-                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
-                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Use diverse search to avoid similar results but may reduce relevance. Tune the tradeoff with λ.
-                  </div>
-                </div>
-              </div>
-              <button id="diverseToggle" class="toggle-switch disabled" data-diverse-search>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+              <label class="text-sm font-medium text-gray-700">Diverse Search</label>
+              <button id="diverseToggle" class="toggle-switch disabled self-start sm:self-auto" data-diverse-search>
                 <span class="toggle-switch-thumb"></span>
               </button>
             </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-700">λ (lambda)</label>
-                <div class="relative group">
-                  <div class="bg-gray-200 rounded-full w-5 h-5 text-xs flex items-center justify-center cursor-help">?</div>
-                  <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    Diversity tradeoff parameter: higher for diversity, lower for relevance.
-                  </div>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 w-32">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+              <label class="text-sm font-medium text-gray-700">λ (lambda)</label>
+              <div class="flex items-center gap-2 w-full sm:w-32 pr-2 sm:pr-0">
                 <input type="range" id="lambda" min="0" max="100" value="50" step="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider" disabled>
-                <span id="lambdaValue" class="text-sm text-gray-600 w-8 text-right">0.50</span>
+                <span id="lambdaValue" class="text-sm text-gray-600 w-10 text-right">0.50</span>
               </div>
             </div>
           </div>
         </div>
-        <div class="relative flex-grow min-w-[500px] max-w-[70%]">
-          <input id="queryInput" type="text" placeholder="Enter your query here" class="w-full border rounded-xl p-2 pr-12" />
-          <button id="sendButton" class="absolute right-2 top-1/2 -translate-y-1/2 bg-teal-600 text-white hover:bg-teal-700 flex items-center justify-center w-[36px] h-[36px] rounded-full">
-            <svg id="sendButtonText" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <div class="relative flex-grow w-full min-w-0">
+          <input id="queryInput" type="text" placeholder="Enter your query here" class="w-full border rounded-2xl p-2 sm:p-3 pr-14 sm:pr-16 text-xs sm:text-sm lg:text-base" />
+          <button id="sendButton" class="absolute right-3 sm:right-3 top-1/2 -translate-y-1/2 bg-teal-600 text-white hover:bg-teal-700 flex items-center justify-center w-[24px] h-[24px] sm:w-[32px] sm:h-[32px] lg:w-[36px] lg:h-[36px] rounded-full">
+            <svg id="sendButtonText" class="w-2 h-2 sm:w-3 sm:h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
             </svg>
           </button>
-          <div id="loadingSpinner" class="hidden absolute right-2 top-1/2 -translate-y-1/2 bg-teal-600 flex items-center justify-center w-[36px] h-[36px] rounded-full">
-            <svg class="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+          <div id="loadingSpinner" class="hidden absolute right-3 sm:right-3 top-1/2 -translate-y-1/2 bg-teal-600 flex items-center justify-center w-[24px] h-[24px] sm:w-[32px] sm:h-[32px] lg:w-[36px] lg:h-[36px] rounded-full">
+            <svg class="w-2 h-2 sm:w-3 sm:h-3 lg:w-4 lg:h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -242,24 +232,36 @@
   </div>
 
   <!-- History Panel Sidebar -->
-  <div id="historySidebar" class="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 flex flex-col z-30">
-    <div class="p-4 border-b border-gray-200">
-      <h1 class="text-xl font-semibold text-gray-700">Query History</h1>
+  <div id="historySidebar" class="fixed left-0 top-0 h-full w-1/4 min-w-[200px] max-w-[300px] bg-white border-r border-gray-200 flex flex-col z-30 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+    <div class="p-3 sm:p-4 border-b border-gray-200 flex items-center justify-between">
+      <h1 class="text-sm sm:text-lg font-semibold text-gray-700">Query History</h1>
+      <button id="sidebarCloseBtn" class="lg:hidden bg-gray-100 hover:bg-gray-200 p-1 rounded-md transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
     </div>
     <div id="queryHistory" class="flex-1 overflow-y-auto">
-      <p class="p-4 text-gray-500 text-sm">No search history yet</p>
+      <p class="p-4 text-gray-500 text-xs sm:text-sm">No search history yet</p>
     </div>
   </div>
 
+  <!-- Mobile Menu Toggle -->
+  <button id="mobileMenuToggle" class="fixed top-16 left-4 z-40 lg:hidden bg-white p-2 rounded-lg shadow-lg border transition-transform duration-300">
+    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+
   <!-- Main Content Area (adjusted for sidebar) -->
-  <div class="flex-1 flex flex-col items-stretch ml-0 md:ml-80">
+  <div class="flex-1 flex flex-col items-stretch ml-0 lg:ml-[25%]">
     <!-- Rounded Header -->
-    <header class="w-full bg-white border-b py-4 px-4 rounded-b-xl shadow-sm fixed top-0 left-80 right-0 z-20">
-      <h1 class="text-3xl font-bold text-gray-900">Compact-DS Dive</h1>
+    <header class="w-full bg-white border-b py-2 sm:py-3 px-3 sm:px-4 rounded-b-xl shadow-sm fixed top-0 left-0 lg:left-[25%] right-0 z-20">
+      <h1 class="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 pl-12 lg:pl-0">Compact-DS Dive</h1>
     </header>
     
     <!-- Main results container that scrolls till the top edge -->
-    <main class="pt-32 px-6 mb-36 overflow-y-auto max-h-[calc(100vh-112px)]" id="results"></main>
+    <main class="pt-16 sm:pt-20 lg:pt-24 px-2 sm:px-4 lg:px-6 mb-24 sm:mb-36 overflow-y-auto max-h-[calc(100vh-112px)]" id="results"></main>
 
 
 
@@ -305,6 +307,84 @@
       queryHistory.unshift(historyItem);
       saveQueryHistory();
       renderQueryHistory();
+    }
+
+    // Show help cover over parameter panel
+    function openHelpCover() {
+      const paramPanel = document.getElementById('paramPanel');
+      if (!paramPanel) return;
+      
+      // Create help cover
+      const helpCover = document.createElement('div');
+      helpCover.id = 'helpCover';
+      helpCover.className = 'absolute inset-0 bg-white rounded-lg shadow-lg p-3 sm:p-4 z-40 transform transition-transform duration-300 ease-in-out';
+      helpCover.style.transform = 'translateY(100%)';
+      
+      helpCover.innerHTML = `
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+          <h3 class="text-lg font-bold text-teal-600 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Parameter Help
+          </h3>
+          <button id="helpCloseBtn" class="text-gray-400 hover:text-teal-600 hover:bg-teal-50 text-xl font-bold w-7 h-7 rounded-full flex items-center justify-center transition-colors duration-200">×</button>
+        </div>
+        <div class="space-y-4 text-sm overflow-y-auto max-h-[calc(100%-4rem)]">
+          <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+            <span class="font-semibold text-teal-700">nprobe:</span> 
+            <span class="text-gray-700">Number of clusters to search. Higher values typically improve accuracy.</span>
+          </div>
+          <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+            <span class="font-semibold text-teal-700">k:</span> 
+            <span class="text-gray-700">Number of top passages to retrieve.</span>
+          </div>
+          <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+            <span class="font-semibold text-teal-700">Exact Search:</span> 
+            <span class="text-gray-700">Use exact search instead of ANN. More accurate but slower.</span>
+          </div>
+          <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+            <span class="font-semibold text-teal-700">Diverse Search:</span> 
+            <span class="text-gray-700">Use diverse search to avoid similar results but may reduce relevance. Tune the tradeoff with λ.</span>
+          </div>
+          <div class="p-3 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+            <span class="font-semibold text-teal-700">λ (lambda):</span> 
+            <span class="text-gray-700">Diversity tradeoff parameter: higher for diversity, lower for relevance.</span>
+          </div>
+        </div>
+      `;
+      
+      // Add to parameter panel
+      paramPanel.appendChild(helpCover);
+      
+      // Animate in
+      setTimeout(() => {
+        helpCover.style.transform = 'translateY(0)';
+      }, 10);
+      
+      // Close functionality
+      const closeBtn = helpCover.querySelector('#helpCloseBtn');
+      closeBtn.addEventListener('click', closeHelpCover);
+      
+      // Store reference
+      window.currentHelpCover = helpCover;
+    }
+    
+    // Close help cover
+    function closeHelpCover() {
+      const helpCover = window.currentHelpCover;
+      if (!helpCover) return;
+      
+      // Animate out
+      helpCover.style.transform = 'translateY(100%)';
+      
+      // Remove after animation
+      setTimeout(() => {
+        if (helpCover.parentNode) {
+          helpCover.parentNode.removeChild(helpCover);
+        }
+        window.currentHelpCover = null;
+      }, 300);
     }
 
     // Render query history
@@ -444,7 +524,7 @@
         const lambdaVal = searchParams?.lambdaVal || document.getElementById('lambda').value;
         
         const queryDisplay = document.createElement('div');
-        queryDisplay.className = "text-gray-700 text-lg font-medium mb-4 bg-[#f7f9fc] py-3 px-4 shadow-sm rounded-lg fixed top-0 left-80 right-6 z-20";
+        queryDisplay.className = "text-gray-700 text-lg font-medium mb-4 bg-[#f7f9fc] py-3 px-4 shadow-sm rounded-lg fixed top-0 left-0 md:left-80 right-2 md:right-6 z-20";
         queryDisplay.innerHTML = `
           <div>Query: <span class="font-semibold">${query}</span></div>
           <div class="flex gap-2 mt-2 flex-wrap" id="queryMeta">
@@ -487,8 +567,8 @@
             </div>
             
             <!-- Rating Feedback Section -->
-            <div class="absolute bottom-4 right-4 flex items-center space-x-1">
-                <span class="text-base font-semibold text-blue-600">Is this passage relevant?</span>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 lg:mt-0 lg:absolute lg:bottom-4 lg:right-4">
+                <span class="text-sm sm:text-base font-semibold text-blue-600">Is this passage relevant?</span>
                 <button 
                     onclick="this.parentElement.innerHTML='<span class=\\'text-sm text-green-600 font-medium\\'>✓ Thanks for the feedback!</span>'"
                     class="text-sm font-semibold text-blue-600 hover:text-green-600 transition-colors px-1.5 py-0.5"
@@ -503,7 +583,7 @@
                 >
                     [NO]
                 </button>
-                </div>
+            </div>
           `;
           container.appendChild(div);
         });
@@ -830,6 +910,89 @@
 
 
 
+    // Mobile menu toggle functionality
+    document.getElementById('mobileMenuToggle').addEventListener('click', () => {
+      const sidebar = document.getElementById('historySidebar');
+      const menuToggle = document.getElementById('mobileMenuToggle');
+      const searchGroup = document.getElementById('centeredSearchGroup');
+      const isOpen = !sidebar.classList.contains('-translate-x-full');
+      
+      if (isOpen) {
+        // Close sidebar
+        sidebar.classList.add('-translate-x-full');
+        menuToggle.style.transform = 'translateX(0)';
+        searchGroup.style.left = '0.5rem';
+        searchGroup.style.right = '0.5rem';
+      } else {
+        // Open sidebar
+        sidebar.classList.remove('-translate-x-full');
+        const sidebarWidth = sidebar.offsetWidth;
+        menuToggle.style.transform = `translateX(${sidebarWidth}px)`;
+        searchGroup.style.left = `${sidebarWidth + 8}px`;
+        searchGroup.style.right = '0.5rem';
+      }
+    });
+
+    // Sidebar close button functionality
+    document.getElementById('sidebarCloseBtn').addEventListener('click', () => {
+      const sidebar = document.getElementById('historySidebar');
+      const menuToggle = document.getElementById('mobileMenuToggle');
+      const searchGroup = document.getElementById('centeredSearchGroup');
+      
+      sidebar.classList.add('-translate-x-full');
+      menuToggle.style.transform = 'translateX(0)';
+      searchGroup.style.left = '0.5rem';
+      searchGroup.style.right = '0.5rem';
+    });
+
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+      const sidebar = document.getElementById('historySidebar');
+      const menuToggle = document.getElementById('mobileMenuToggle');
+      const searchGroup = document.getElementById('centeredSearchGroup');
+      
+      if (window.innerWidth < 1024 && // Only on mobile/tablet
+          !sidebar.contains(e.target) && 
+          !menuToggle.contains(e.target) &&
+          !sidebar.classList.contains('-translate-x-full')) {
+        sidebar.classList.add('-translate-x-full');
+        menuToggle.style.transform = 'translateX(0)';
+        searchGroup.style.left = '0.5rem';
+        searchGroup.style.right = '0.5rem';
+      }
+    });
+
+    // Position parameter panel to avoid covering search bar
+    function positionParamPanel() {
+      const paramPanel = document.getElementById('paramPanel');
+      const searchGroup = document.getElementById('centeredSearchGroup');
+      if (!paramPanel || !searchGroup) return;
+
+      if (window.innerWidth < 640) {
+        // Make the panel fixed and full-width with safe margins on mobile
+        const searchRect = searchGroup.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const safeBottomPx = Math.max(8, viewportHeight - searchRect.top + 8); // stay above bar
+
+        paramPanel.style.position = 'fixed';
+        paramPanel.style.left = '8px';
+        paramPanel.style.right = '8px';
+        paramPanel.style.width = 'auto';
+        paramPanel.style.bottom = `${safeBottomPx}px`;
+        paramPanel.style.maxWidth = 'none';
+        paramPanel.style.transform = 'none';
+      } else {
+        // Restore defaults for larger screens; allow CSS classes to handle layout
+        paramPanel.style.position = '';
+        paramPanel.style.left = '';
+        paramPanel.style.right = '';
+        paramPanel.style.width = '';
+        paramPanel.style.bottom = '';
+        paramPanel.style.maxWidth = '';
+        paramPanel.style.transform = '';
+      }
+    }
+    
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       loadQueryHistory();
@@ -837,6 +1000,38 @@
       const centeredSearchGroup = document.getElementById('centeredSearchGroup');
       if (welcomeMessage) welcomeMessage.style.display = 'flex';
       if (centeredSearchGroup) centeredSearchGroup.style.display = 'flex';
+
+      // Wire help button
+      const helpBtn = document.getElementById('helpBtn');
+      if (helpBtn) {
+        let helpCover = null;
+        let isHelpOpen = false;
+        
+        helpBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          if (!isHelpOpen) {
+            openHelpCover();
+            isHelpOpen = true;
+          } else {
+            closeHelpCover();
+            isHelpOpen = false;
+          }
+        });
+      }
+      
+      // Position parameter panel on load and resize
+      positionParamPanel();
+      window.addEventListener('resize', positionParamPanel);
+      
+      // Position panel when it becomes visible
+      const toggleParamsBtn = document.getElementById('toggleParamsBtn');
+      if (toggleParamsBtn) {
+        toggleParamsBtn.addEventListener('click', () => {
+          setTimeout(positionParamPanel, 10); // Small delay to ensure panel is visible
+        });
+      }
     });
   </script>
 </body>
