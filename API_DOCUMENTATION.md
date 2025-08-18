@@ -18,7 +18,7 @@
 ## 📡 API Endpoint
 
 ```
-POST https://tinyurl.com/compact-ds-dive/search
+POST http://192.222.59.156:30888/search
 Content-Type: application/json
 ```
 
@@ -79,7 +79,7 @@ Controls the balance between accuracy and diversity when `diverse_search` is ena
 import requests
 import json
 
-url = "https://tinyurl.com/compact-ds-dive/search"
+url = "http://192.222.59.156:30888/search"
 headers = {"Content-Type": "application/json"}
 
 payload = {
@@ -240,7 +240,7 @@ import json
 import time
 
 def test_api():
-    url = "https://tinyurl.com/compact-ds-dive/search"
+    url = "http://192.222.59.156:30888/search"
     headers = {"Content-Type": "application/json"}
     
     # Test cases

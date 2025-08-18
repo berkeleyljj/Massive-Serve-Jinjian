@@ -708,7 +708,7 @@
       const startTime = performance.now();
       
       try {
-        const response = await fetch(`https://tinyurl.com/compact-ds-dive/search`, {
+        const response = await fetch(`http://192.222.59.156:30888/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -830,7 +830,7 @@
 
     async function expandPassage(indexId, offset) {
       try {
-        const response = await fetch(`https://tinyurl.com/compact-ds-dive/search`, {
+        const response = await fetch(`http://192.222.59.156:30888/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
