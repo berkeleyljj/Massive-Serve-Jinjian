@@ -187,10 +187,8 @@
               </select>
             </div>
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-              <label class="text-sm font-medium text-gray-700">k</label>
-              <select id="k" class="border rounded-md p-1 text-sm w-full sm:w-24">
-                <option>1</option><option>3</option><option selected>5</option><option>10</option><option>20</option>
-              </select>
+              <label class="text-sm font-medium text-gray-700">k (max: 1000)</label>
+              <input type="number" id="k" min="1" max="1000" value="5" class="border rounded-md p-1 text-sm w-16 text-center">
             </div>
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
               <label class="text-sm font-medium text-gray-700">Exact Search</label>
@@ -547,7 +545,7 @@
           div.className = 'bg-white p-3 sm:p-4 rounded-2xl shadow-md mb-3 sm:mb-4 relative';
           div.setAttribute('data-passage-id', p.index_id || i);
           div.innerHTML = `
-            <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span></div>
+            <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span>${data?.results?.scores?.[0]?.[i] ? ` • Score: <span class='font-medium text-blue-600'>${data.results.scores[0][i].toFixed(3)}</span>` : ''}</div>
             <div class='text-gray-900 leading-relaxed mb-4' data-original-raw="${p.text.replace(/"/g, '&quot;')}">${escapeHtml(p.text)}</div>
             
             <!-- Show More/Less Section -->
@@ -669,6 +667,8 @@
       const value = parseFloat(this.value) / 100;
       document.getElementById('lambdaValue').textContent = value.toFixed(2);
     });
+
+
 
     async function submitQuery(addToHist) {
       // Hide parameter panel when submitting query

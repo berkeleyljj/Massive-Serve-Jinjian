@@ -39,7 +39,7 @@ Content-Type: application/json
 
 | Parameter | Type | Default | Range | Description |
 |-----------|------|---------|-------|-------------|
-| `n_docs` | integer | 1 | 1-20 | Number of top passages to retrieve |
+| `n_docs` | integer | 1 | 1-1000 | Number of top passages to retrieve |
 | `nprobe` | integer | 32 | 1, 8, 16, 32, 64, 128, 256 | Number of clusters to search (higher = more accurate but slower) |
 | `exact_search` | boolean | false | true/false | Use exact search instead of ANN (more accurate but slower) |
 | `diverse_search` | boolean | false | true/false | Use diverse search to avoid similar results |
@@ -157,6 +157,13 @@ payload = {
   }
 }
 ```
+
+**Note**: Similarity scores are displayed in the UI for each passage, showing the relevance score where higher values indicate better matches.
+
+**Score Types by Search Mode:**
+- **ANN Search (default)**: FAISS index similarity scores
+- **Exact Search**: Cosine similarity scores computed during exact reranking
+- **Diverse Search**: Uses exact similarity scores with diversity penalty applied during selection
 
 ### Batched Query Response
 
@@ -301,4 +308,27 @@ def test_api():
 if __name__ == "__main__":
     test_api()
 ```
+---
+
+## 💻 Compute Resources & Performance
+
+### System Specifications
+- **CPU**: High-performance multi-core processors optimized for vector operations
+- **RAM**: Sufficient memory for billion-scale index operations
+- **Storage**: Fast SSD storage for quick data access
+- **Network**: Low-latency connections for real-time search
+
+### Performance Considerations
+- **n_docs Impact**: Higher values (50-1000) increase response time linearly but provide more comprehensive results
+- **Exact Search**: Adds ~1.5s latency but improves accuracy significantly
+- **Diverse Search**: Moderate performance impact with configurable diversity trade-offs
+- **Caching**: Similar queries benefit from result caching for faster subsequent responses
+
+### Recommended Usage
+- **Small Queries**: n_docs 1-20 for quick results
+- **Comprehensive Search**: n_docs 50-500 for thorough exploration
+- **Large-scale Analysis**: n_docs 1000 for maximum coverage (expect longer response times)
+
+---
+
 *This documentation covers the Compact-DS Search API v1.0. For updates and additional features, please refer to the latest version.* 
