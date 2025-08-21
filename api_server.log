@@ -1,7 +1,0 @@
-nohup: ignoring input
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/home/ubuntu/massive-serve-dev/massive_serve/api/serve.py", line 14, in <module>
-    import psutil
-ModuleNotFoundError: No module named 'psutil'

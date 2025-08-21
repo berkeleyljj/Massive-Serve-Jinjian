@@ -11,9 +11,20 @@ from flask_cors import CORS
 import threading
 import queue
 from flask import send_from_directory
-import psutil
+try:
+    import psutil as _psutil
+except Exception:
+    _psutil = None
 import time
-from colorama import Fore, Style
+try:
+    from colorama import Fore, Style
+except Exception:
+    class _DummyStyle:
+        RESET_ALL = ""
+    class _DummyFore:
+        CYAN = ""; GREEN = ""; YELLOW = ""; WHITE = ""
+    Fore = _DummyFore()
+    Style = _DummyStyle()
 import torch
 import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,12 +37,17 @@ query_encoder = GritLM("GritLM/GritLM-7B", torch_dtype="auto", mode="embedding")
 query_encoder.eval()
 query_encoder = query_encoder.to(device)
 
-# Function to measure memory usage
+# Function to measure memory usage (no-op if psutil unavailable)
 def print_mem_use(label=""):
-    process = psutil.Process(os.getpid())
-    mem_bytes = process.memory_info().rss
-    mem_mb = mem_bytes / 1024 / 1024
-    print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
+    try:
+        if _psutil is None:
+            return
+        process = _psutil.Process(os.getpid())
+        mem_bytes = process.memory_info().rss
+        mem_mb = mem_bytes / 1024 / 1024
+        print(f"[{label}] Memory usage: {mem_mb:.2f} MB")
+    except Exception:
+        pass
 
 from massive_serve.api.api_index import get_datastore
 
@@ -271,47 +287,107 @@ _votes_dir = os.environ.get('VOTES_DIR', '/home/ubuntu/votes')
 vote_store = DiskVoteStore(_votes_dir)
 # ============================ [disk-vote] END additions ============================
 
+# ============================ [query-log] BEGIN additions ============================
+class QueryLogger:
+    """Thread-safe JSONL logger for every query with canonicalized config."""
 
-# ============================ [query-cache] BEGIN additions ============================
-from collections import OrderedDict
-
-class QueryResultCache:
-    """Thread-safe, memory-bounded LRU cache for query results.
-
-    Keyed by (query_hash, ctx_hash, n_docs). Values are the already JSON-serializable
-    results dict as returned by the API (i.e., after numpy -> list conversion).
-    """
-
-    def __init__(self, max_entries: int = 5000) -> None:
-        self.max_entries = int(max_entries)
-        self._store: OrderedDict[tuple, dict] = OrderedDict()
+    def __init__(self, base_dir: str, file_name: str = "queries.jsonl") -> None:
+        self.base_dir = base_dir
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.file_path = os.path.join(self.base_dir, file_name)
         self._lock = threading.Lock()
 
-    def _make_key(self, query: str, ctx: dict | None, n_docs: int) -> tuple:
+    def log(self, query: str, canon_cfg: dict, n_docs: int, latency_s: float, expand_index_id=None, expand_offset=1) -> None:
+        rec = {
+            "ts": int(time.time()),
+            "query_hash": DiskVoteStore._hash_query(query),
+            "query_norm": DiskVoteStore._normalize_query(query),
+            "config": canon_cfg,
+            "n_docs": int(n_docs),
+            "latency": float(latency_s),
+            "expand_index_id": expand_index_id,
+            "expand_offset": expand_offset,
+        }
+        line = json.dumps(rec, ensure_ascii=False)
+        with self._lock:
+            with open(self.file_path, 'a', encoding='utf-8') as f:
+                f.write(line + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+
+
+_query_log_dir = os.environ.get('QUERY_LOG_DIR', '/home/ubuntu/query_logs')
+QUERY_LOGGER = QueryLogger(_query_log_dir)
+# ============================ [query-log] END additions ============================
+
+# ============================ [disk-query-cache] BEGIN additions ============================
+class DiskQueryCache:
+    """SQLite-backed cache for query results, keyed by (query_hash, ctx_hash, n_docs).
+
+    Stores JSON-serialized results for durability across restarts.
+    """
+
+    def __init__(self, base_dir: str) -> None:
+        self.base_dir = base_dir
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.db_path = os.path.join(self.base_dir, "query_cache.sqlite3")
+        self._lock = threading.Lock()
+        self._db = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._db.execute("PRAGMA journal_mode=WAL;")
+        self._db.execute("PRAGMA synchronous=NORMAL;")
+        self._create_tables()
+
+    def _create_tables(self) -> None:
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS qcache (
+              query_hash TEXT NOT NULL,
+              ctx_hash   TEXT NOT NULL,
+              n_docs     INTEGER NOT NULL,
+              ts         INTEGER NOT NULL,
+              results    TEXT NOT NULL,
+              PRIMARY KEY (query_hash, ctx_hash, n_docs)
+            )
+            """
+        )
+        self._db.commit()
+
+    def _key(self, query: str, ctx: dict | None) -> tuple[str, str]:
         qh = DiskVoteStore._hash_query(query)
         ch = DiskVoteStore._hash_ctx(ctx)
-        return (qh, ch, int(n_docs))
+        return qh, ch
 
-    def get(self, query: str, ctx: dict | None, n_docs: int):
-        key = self._make_key(query, ctx, n_docs)
-        with self._lock:
-            val = self._store.get(key)
-            if val is not None:
-                self._store.move_to_end(key, last=True)
-            return val
+    def get(self, query: str, ctx: dict | None):
+        qh, ch = self._key(query, ctx)
+        try:
+            with self._lock:
+                cur = self._db.execute(
+                    "SELECT results FROM qcache WHERE query_hash=? AND ctx_hash=? ORDER BY n_docs DESC LIMIT 1",
+                    (qh, ch),
+                )
+                row = cur.fetchone()
+            if not row:
+                return None
+            return json.loads(row[0])
+        except Exception:
+            return None
 
     def set(self, query: str, ctx: dict | None, n_docs: int, results: dict) -> None:
-        key = self._make_key(query, ctx, n_docs)
-        with self._lock:
-            if key in self._store:
-                self._store.move_to_end(key, last=True)
-            self._store[key] = results
-            while len(self._store) > self.max_entries:
-                self._store.popitem(last=False)
+        qh, ch = self._key(query, ctx)
+        try:
+            blob = json.dumps(results, ensure_ascii=False)
+            with self._lock:
+                self._db.execute(
+                    "INSERT OR REPLACE INTO qcache(query_hash, ctx_hash, n_docs, ts, results) VALUES (?, ?, ?, ?, ?)",
+                    (qh, ch, int(n_docs), int(time.time()), blob),
+                )
+                self._db.commit()
+        except Exception:
+            pass
 
-
-query_cache = QueryResultCache()
-# ============================ [query-cache] END additions ============================
+_query_cache_dir = os.environ.get('QUERY_CACHE_DIR', '/home/ubuntu/query_cache')
+disk_query_cache = DiskQueryCache(_query_cache_dir)
+# ============================ [disk-query-cache] END additions ============================
 class Item:
     def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None) -> None:
         self.query = query
@@ -397,19 +473,6 @@ def search():
             'lambda': request.json.get('lambda', 0.5),
         }
         canon_cfg = DiskVoteStore._canonicalize_ctx(request_cfg)
-        # Fast-path cache only for single-query, no expansion mode
-        if isinstance(query_input, str) and not request.json.get('expand_index_id'):
-            cached = query_cache.get(query_input, canon_cfg, request.json.get('n_docs', 1))
-            if cached is not None:
-                return jsonify({
-                    "message": f"Cache hit for '{query_input}'",
-                    "query": query_input,
-                    "n_docs": request.json.get('n_docs', 1),
-                    "nprobe": request.json.get('nprobe', None),
-                    "expand_index_id" : request.json.get('expand_index_id'),
-                    "expand_offset" : request.json.get('expand_offset', 1),
-                    "results": cached,
-                }), 200
         item = Item(
             query=query_input,
             n_docs=request.json.get('n_docs', 1),
@@ -428,6 +491,7 @@ def search():
         timer = threading.Timer(600.0, lambda: (_ for _ in ()).throw(TimeoutError('Search timed out after 600 seconds')))
         timer.start()
         try:
+            start_time = time.time()
             results = search_queue.search(item)
             timer.cancel()
 
@@ -444,12 +508,18 @@ def search():
                     return obj
 
             results = convert_ndarrays(results)
-            # Populate cache on successful search for single query, non-expansion
-            if isinstance(query_input, str) and not request.json.get('expand_index_id'):
-                try:
-                    query_cache.set(query_input, canon_cfg, request.json.get('n_docs', 1), results)
-                except Exception:
-                    pass
+            # Log every query with canonical config for future analysis
+            try:
+                latency = round(time.time() - start_time, 4)
+                if isinstance(query_input, list):
+                    for q in query_input:
+                        QUERY_LOGGER.log(q, canon_cfg, request.json.get('n_docs', 1), latency,
+                                         request.json.get('expand_index_id'), request.json.get('expand_offset', 1))
+                else:
+                    QUERY_LOGGER.log(query_input, canon_cfg, request.json.get('n_docs', 1), latency,
+                                     request.json.get('expand_index_id'), request.json.get('expand_offset', 1))
+            except Exception:
+                pass
 
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
