@@ -521,10 +521,37 @@
         const useDiverse = searchParams?.useDiverse !== undefined ? searchParams.useDiverse : document.getElementById('diverseToggle').classList.contains('enabled');
         const lambdaVal = searchParams?.lambdaVal || document.getElementById('lambda').value;
         
+        const isLongQuery = (query || '').length > 25; // fallback; actual collapse decided after measuring
+        const safeQuery = escapeHtml(query || '');
+        // Build preview for summary: first ~25 chars, cut at word boundary, add ellipsis if truncated
+        const previewLimit = 25;
+        let previewRaw = (query || '').slice(0, previewLimit);
+        if ((query || '').length > previewLimit) {
+          let cut = (query || '').slice(0, previewLimit);
+          const lastSpace = cut.lastIndexOf(' ');
+          if (lastSpace > 0) cut = cut.slice(0, lastSpace);
+          previewRaw = cut + '...';
+        }
+        const previewEscaped = escapeHtml(previewRaw);
+
+        // Escape single quotes for safe embedding inside single-quoted attributes
+        const safeQueryAttr = (safeQuery || '').replace(/'/g, "&#39;");
+        const previewAttr = (previewEscaped || '').replace(/'/g, "&#39;");
+
         const queryDisplay = document.createElement('div');
         queryDisplay.className = "text-gray-700 text-lg font-medium mb-4 bg-[#f7f9fc] py-3 px-4 shadow-sm rounded-lg fixed top-0 left-0 md:left-80 right-2 md:right-6 z-20";
+        // append first for measuring available width
+        container.appendChild(queryDisplay);
+
+        const collapse = shouldCollapseQuery(safeQuery, queryDisplay);
+        const headerMarkup = collapse
+          ? `<details class="mt-1" data-query-collapsible data-full='${safeQueryAttr}' data-preview='${previewAttr}'>
+               <summary class="cursor-pointer select-none">Query: <span class="font-semibold whitespace-pre-wrap break-words">${previewEscaped}</span></summary>
+             </details>`
+          : `<div>Query: <span class="font-semibold whitespace-pre-wrap break-words">${safeQuery}</span></div>`;
+
         queryDisplay.innerHTML = `
-          <div>Query: <span class="font-semibold">${query}</span></div>
+          ${headerMarkup}
           <div class="flex gap-2 mt-2 flex-wrap" id="queryMeta">
             <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">nprobe: ${nprobe}</span>
             <span class="bg-gray-200 text-gray-700 text-sm px-2 py-1 rounded-full">k: ${k}</span>
@@ -534,7 +561,12 @@
             ${latency ? `<span class="bg-green-100 text-green-700 text-sm px-2 py-1 rounded-full flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>${latency}s</span>` : ''}
           </div>
         `;
-        container.appendChild(queryDisplay);
+        // Insert/update spacer so first passage starts below the fixed header
+        ensureResultsSpacer(container, queryDisplay);
+        // Initialize collapsible behavior to swap preview with full text without repetition
+        initQueryCollapsible(queryDisplay);
+        // On resize, recompute collapse based on available width
+        setupResponsiveHeader(queryDisplay);
       }
       
       const passages = data?.results?.passages?.[0] || [];
@@ -542,11 +574,11 @@
       if (passages.length > 0) {
         passages.forEach((p, i) => {
           const div = document.createElement('div');
-          div.className = 'bg-white p-3 sm:p-4 rounded-2xl shadow-md mb-3 sm:mb-4 relative';
+          div.className = 'bg-white p-3 sm:p-4 rounded-2xl shadow-md mb-3 sm:mb-4 relative overflow-hidden';
           div.setAttribute('data-passage-id', p.index_id || i);
           div.innerHTML = `
-            <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span>${data?.results?.scores?.[0]?.[i] ? ` • Score: <span class='font-medium text-blue-600'>${data.results.scores[0][i].toFixed(3)}</span>` : ''}</div>
-            <div class='text-gray-900 leading-relaxed mb-4' data-original-raw="${p.text.replace(/"/g, '&quot;')}">${escapeHtml(p.text)}</div>
+            <div class='text-sm text-gray-600 mb-2'>#${i + 1} • Source: <span class='font-medium'>${p.source || 'unknown'}</span>${data?.results?.scores?.[0]?.[i] ? ` • Score: <span class='font-medium text-blue-600'>${data.results.scores[0][i].toFixed(8)}</span> <span class='text-xs text-gray-500'> </span>` : ''}</div>
+            <div class='text-gray-900 leading-relaxed mb-4 whitespace-pre-wrap break-words' data-original-raw="${p.text.replace(/"/g, '&quot;')}">${escapeHtml(p.text)}</div>
             
             <!-- Show More/Less Section -->
             <div class="mt-4 pt-4 border-t border-gray-200">
@@ -565,19 +597,21 @@
             </div>
             
             <!-- Rating Feedback Section -->
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 lg:mt-0 lg:absolute lg:bottom-4 lg:right-4">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 lg:mt-0 lg:absolute lg:bottom-4 lg:right-4" data-vote-box>
                 <span class="text-sm sm:text-base font-semibold text-blue-600">Is this passage relevant?</span>
                 <button 
-                    onclick="this.parentElement.innerHTML='<span class=\\'text-sm text-green-600 font-medium\\'>✓ Thanks for the feedback!</span>'"
                     class="text-sm font-semibold text-blue-600 hover:text-green-600 transition-colors px-1.5 py-0.5"
                     title="Yes, this passage is relevant"
+                    data-vote="yes"
+                    data-passage-id="${(p.passage_id ?? '').toString().replace(/"/g, '&quot;')}"
                 >
                     [YES]
                 </button>
                 <button 
-                    onclick="this.parentElement.innerHTML='<span class=\\'text-sm text-red-600 font-medium\\'>✗ Thanks for the feedback!</span>'"
                     class="text-sm font-semibold text-blue-600 hover:text-red-600 transition-colors px-1.5 py-0.5"
                     title="No, this passage is not relevant"
+                    data-vote="no"
+                    data-passage-id="${(p.passage_id ?? '').toString().replace(/"/g, '&quot;')}"
                 >
                     [NO]
                 </button>
@@ -588,6 +622,8 @@
         
         // Attach event listeners for Show More/Less functionality
         attachShowMoreListeners();
+        // [disk-vote] attach vote listeners tied to current query
+        attachVoteListeners(query);
       } else {
         const noResultsDiv = document.createElement('div');
         noResultsDiv.className = 'bg-red-50 border border-red-300 text-red-700 p-6 rounded-2xl shadow-md text-center max-w-2xl mx-auto mt-10';
@@ -828,6 +864,52 @@
       });
     }
 
+    // ============================ [disk-vote] BEGIN additions ============================
+    function attachVoteListeners(queryForVote) {
+      try {
+        document.querySelectorAll('[data-vote-box]').forEach(box => {
+          box.querySelectorAll('[data-vote]').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              const vote = e.currentTarget.getAttribute('data-vote');
+              const passageId = e.currentTarget.getAttribute('data-passage-id');
+              const relevant = vote === 'yes';
+              const parent = e.currentTarget.parentElement;
+              // [disk-vote] include current search parameters for analysis
+              const nprobe = document.getElementById('nprobe')?.value;
+              const useRerank = document.getElementById('rerankToggle')?.classList.contains('enabled');
+              const useDiverse = document.getElementById('diverseToggle')?.classList.contains('enabled');
+              const lambdaVal = parseFloat(document.getElementById('lambda')?.value || '50') / 100;
+              try {
+                await fetch(`http://compactds.duckdns.org:30888/vote`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    query: queryForVote || document.getElementById('queryInput')?.value || '',
+                    passage_id: passageId,
+                    relevant: relevant,
+                    config: {
+                      nprobe: nprobe ? parseInt(nprobe) : undefined,
+                      exact_search: !!useRerank,
+                      diverse_search: !!useDiverse,
+                      lambda: lambdaVal
+                    }
+                  })
+                });
+                parent.innerHTML = relevant
+                  ? '<span class="text-sm text-green-600 font-medium">✓ Thanks for the feedback!</span>'
+                  : '<span class="text-sm text-red-600 font-medium">✗ Thanks for the feedback!</span>';
+              } catch (err) {
+                console.error('Vote submit failed:', err);
+              }
+            });
+          });
+        });
+      } catch (e) {
+        console.error('attachVoteListeners failed:', e);
+      }
+    }
+    // ============================ [disk-vote] END additions ============================
+
     async function expandPassage(indexId, offset) {
       try {
         const response = await fetch(`http://compactds.duckdns.org:30888/search`, {
@@ -863,6 +945,114 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+    
+    function toHexString(num) {
+      // Convert to hex with full precision
+      const buffer = new ArrayBuffer(8);
+      const view = new DataView(buffer);
+      view.setFloat64(0, num);
+      const hex = Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+      return '0x' + hex;
+    }
+
+    // Initialize query collapsible behavior to avoid repeated content below
+    function initQueryCollapsible(scope) {
+      (scope || document).querySelectorAll('details[data-query-collapsible]').forEach((dt) => {
+        const summary = dt.querySelector('summary');
+        const full = dt.dataset.full || '';
+        const preview = dt.dataset.preview || '';
+        dt.addEventListener('toggle', () => {
+          const content = dt.open ? full : preview;
+          if (summary) {
+            summary.innerHTML = `Query: <span class="font-semibold whitespace-pre-wrap break-words">${content}</span>`;
+          }
+        });
+      });
+    }
+
+    // Decide if header should collapse based on rendered width (one-line fit)
+    function shouldCollapseQuery(fullHtmlEscaped, headerContainer) {
+      // Create a temporary measurement element with same styling
+      const temp = document.createElement('div');
+      temp.style.position = 'absolute';
+      temp.style.visibility = 'hidden';
+      temp.style.whiteSpace = 'nowrap';
+      temp.style.fontWeight = '600';
+      temp.style.fontSize = getComputedStyle(headerContainer).fontSize || '1rem';
+      temp.style.maxWidth = 'none';
+      temp.innerHTML = `Query: <span class="font-semibold whitespace-pre-wrap break-words">${fullHtmlEscaped}</span>`;
+      document.body.appendChild(temp);
+      const textWidth = temp.getBoundingClientRect().width;
+      document.body.removeChild(temp);
+
+      // Available width inside the container (padding already applied on container)
+      const containerWidth = headerContainer.getBoundingClientRect().width;
+      // Heuristic: allow some headroom for the meta badges that follow; collapse if text would wrap
+      const reservedForBadges = 260; // px buffer for chips; tuned for mobile/desktop
+      return textWidth > Math.max(0, containerWidth - reservedForBadges);
+    }
+
+    // Re-evaluate collapse on resize
+    function setupResponsiveHeader(scope) {
+      const container = scope || document;
+      const relayout = () => {
+        const queryBox = container; // the same wrapper we created
+        if (!queryBox) return;
+        const full = queryBox.dataset.full;
+        const preview = queryBox.dataset.preview;
+        if (!full || !preview) return;
+
+        const collapse = shouldCollapseQuery(full, queryBox);
+        const existsDetails = queryBox.querySelector('details[data-query-collapsible]');
+        if (collapse && !existsDetails) {
+          queryBox.insertAdjacentHTML('afterbegin', `<details class="mt-1" data-query-collapsible data-full='${full.replace(/'/g, "&#39;")}' data-preview='${preview.replace(/'/g, "&#39;")}'><summary class="cursor-pointer select-none">Query: <span class="font-semibold whitespace-pre-wrap break-words">${preview}</span></summary></details>`);
+          // remove static div header if present
+          const staticDiv = queryBox.querySelector(':scope > div');
+          if (staticDiv) staticDiv.remove();
+          initQueryCollapsible(queryBox);
+        } else if (!collapse) {
+          // replace details with static full text
+          const det = existsDetails;
+          if (det) det.remove();
+          queryBox.insertAdjacentHTML('afterbegin', `<div>Query: <span class="font-semibold whitespace-pre-wrap break-words">${full}</span></div>`);
+        }
+      };
+      window.addEventListener('resize', relayout);
+      // Run once now
+      setTimeout(relayout, 0);
+    }
+
+    // Ensure a spacer element exists under the fixed header so content doesn't hide behind it
+    function ensureResultsSpacer(resultsContainer, headerEl) {
+      if (!resultsContainer || !headerEl) return;
+      let spacer = resultsContainer.querySelector('[data-results-spacer]');
+      if (!spacer) {
+        spacer = document.createElement('div');
+        spacer.setAttribute('data-results-spacer', '1');
+        resultsContainer.prepend(spacer);
+      }
+      const updateSpacer = () => {
+        const rect = headerEl.getBoundingClientRect();
+        const margin = 4; // breathing room
+        const isOpen = !!headerEl.querySelector('details[data-query-collapsible][open]');
+        // When collapsed, use a compact spacer; when expanded, use full height to prevent overlap
+        const target = isOpen
+          ? Math.max(0, Math.round(rect.height + margin))
+          : Math.max(0, Math.round((rect.height + margin) / 3));
+        spacer.style.height = `${target}px`;
+      };
+      updateSpacer();
+      // Update on resize and when details toggle may change height
+      window.addEventListener('resize', updateSpacer);
+      const details = headerEl.querySelector('details[data-query-collapsible]');
+      if (details) {
+        details.addEventListener('toggle', () => setTimeout(updateSpacer, 0));
+      }
+      // Also update after responsive relayout changes header structure
+      setTimeout(updateSpacer, 0);
     }
 
     function highlightOriginalText(expandedText, originalText) {

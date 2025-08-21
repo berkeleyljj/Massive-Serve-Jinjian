@@ -444,7 +444,7 @@ class IVFPQIndexer(object):
 
         # Optimize for speed: cap at 3200 for maximum speed
         MAX_K = 3200  # Capped for speed
-        base_Ks = [100, 200, 400, 800, 1600, MAX_K]
+        base_Ks = [1000]
         
         print(f"[DEBUG] Input k={k}, type={type(k)}")
         # Ensure k is an integer
@@ -500,25 +500,25 @@ class IVFPQIndexer(object):
 
 
                 unique = []
-                seen_texts = set()  # Use set for O(1) lookup instead of list
+                # seen_texts = set()  # Use set for O(1) lookup instead of list
                 for passage in raw_passages:
                     text = passage.get("text", "").strip()
                     
-                    # Keep word limit consistent as requested
-                    min_words = 20 
-                    if len(text.split()) < min_words:
-                        continue
+                    # # Keep word limit consistent as requested
+                    # min_words = 20 
+                    # if len(text.split()) < min_words:
+                    #     continue
                     
-                    # Use set for faster redundancy check
-                    if text in seen_texts:
-                        continue
+                    # # Use set for faster redundancy check
+                    # if text in seen_texts:
+                    #     continue
                     
-                    # Removed keyword matching filter for speed and simplicity
+                    # # Removed keyword matching filter for speed and simplicity
                     
-                    seen_texts.add(text)
+                    # seen_texts.add(text)
                     unique.append(passage)
-                    if len(unique) >= k:
-                        break
+                    # if len(unique) >= k:
+                    #     break
 
                 all_batch_passages.append(unique)
 

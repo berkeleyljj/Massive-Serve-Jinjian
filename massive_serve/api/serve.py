@@ -1,5 +1,7 @@
 import os
 import json
+import hashlib  # [disk-vote] query hashing for compact storage
+import sqlite3  # [disk-vote-sqlite] efficient lookup index
 import traceback
 import datetime
 import socket
@@ -62,6 +64,254 @@ app = Flask(__name__)
 CORS(app)
 
 
+# ============================ [disk-vote] BEGIN additions ============================
+# Persist passage relevance votes to disk for later analysis and across restarts.
+# One JSON line per vote: { ts, query_hash, query_norm, passage_id, relevant, raw_query }
+
+class DiskVoteStore:
+    """Append-only JSONL vote store with bounded tail scans for lookup.
+
+    - Writes are serialized via a process-level lock
+    - get_vote scans from file end up to a fixed number of lines to find latest
+    """
+
+    def __init__(self, base_dir: str, file_name: str = "votes.jsonl", tail_scan_limit: int = 20000) -> None:
+        self.base_dir = base_dir
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.file_path = os.path.join(self.base_dir, file_name)
+        self.tail_scan_limit = int(tail_scan_limit)
+        self._lock = threading.Lock()
+        # [disk-vote-sqlite] initialize sqlite sidecar for fast lookups
+        self.db_path = os.path.join(self.base_dir, "votes.sqlite3")
+        self._db = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._db.execute("PRAGMA journal_mode=WAL;")
+        self._db.execute("PRAGMA synchronous=NORMAL;")
+        self._create_tables()
+
+    @staticmethod
+    def _normalize_query(query: str) -> str:
+        if not isinstance(query, str):
+            return ""
+        return " ".join(query.strip().lower().split())
+
+    @classmethod
+    def _hash_query(cls, query: str) -> str:
+        norm = cls._normalize_query(query)
+        return hashlib.sha1(norm.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _canonicalize_ctx(ctx: dict | None) -> dict:
+        if not isinstance(ctx, dict):
+            return {}
+        out = {}
+        if "nprobe" in ctx and ctx["nprobe"] is not None:
+            try:
+                out["nprobe"] = int(ctx["nprobe"])  # ensure int
+            except Exception:
+                pass
+        if "exact_search" in ctx:
+            out["exact_search"] = bool(ctx["exact_search"])  # required boolean
+        if "diverse_search" in ctx:
+            out["diverse_search"] = bool(ctx["diverse_search"])  # required boolean
+        # Only persist lambda if diverse_search is true
+        if out.get("diverse_search") is True and ("lambda" in ctx) and (ctx["lambda"] is not None):
+            try:
+                out["lambda"] = round(float(ctx["lambda"]), 2)  # 2dp
+            except Exception:
+                pass
+        return out
+
+    @classmethod
+    def _hash_ctx(cls, ctx: dict | None) -> str:
+        canon = cls._canonicalize_ctx(ctx)
+        # stable JSON string for hashing
+        canon_str = json.dumps(canon, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha1(canon_str.encode("utf-8")).hexdigest()
+
+    def _create_tables(self) -> None:
+        # Minimal normalized schema
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS queries (
+              query_hash TEXT PRIMARY KEY,
+              query_norm TEXT
+            )
+            """
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contexts (
+              ctx_hash TEXT PRIMARY KEY,
+              nprobe INTEGER,
+              exact_search INTEGER,
+              diverse_search INTEGER,
+              lambda REAL
+            )
+            """
+        )
+        self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS votes (
+              query_hash TEXT NOT NULL,
+              ctx_hash TEXT NOT NULL,
+              passage_id TEXT NOT NULL,
+              relevant INTEGER NOT NULL,
+              ts INTEGER NOT NULL,
+              PRIMARY KEY (query_hash, ctx_hash, passage_id)
+            )
+            """
+        )
+        self._db.commit()
+
+    def record_vote(self, query: str, passage_id: str, relevant: bool, ctx: dict | None = None) -> None:
+        payload = {
+            # [disk-vote] compact: integer seconds
+            "ts": int(time.time()),
+            "query_hash": self._hash_query(query),
+            "query_norm": self._normalize_query(query),
+            "passage_id": str(passage_id),
+            "relevant": bool(relevant),
+        }
+        # [disk-vote] optional compact search config (nprobe, exact_search, diverse_search, lambda)
+        compact_ctx = self._canonicalize_ctx(ctx)
+        if compact_ctx:
+            payload["config"] = compact_ctx
+        line = json.dumps(payload, ensure_ascii=False)
+        with self._lock:
+            with open(self.file_path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            # [disk-vote-sqlite] upsert normalized rows for efficient lookup
+            qh = payload["query_hash"]
+            cn = payload["query_norm"]
+            ch = self._hash_ctx(compact_ctx)
+            ts = payload["ts"]
+            rel = 1 if bool(payload["relevant"]) else 0
+            pid = payload["passage_id"]
+            # queries map
+            self._db.execute(
+                "INSERT OR IGNORE INTO queries(query_hash, query_norm) VALUES (?, ?)",
+                (qh, cn),
+            )
+            # contexts map
+            if compact_ctx:
+                self._db.execute(
+                    "INSERT OR IGNORE INTO contexts(ctx_hash, nprobe, exact_search, diverse_search, lambda) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        ch,
+                        compact_ctx.get("nprobe"),
+                        1 if compact_ctx.get("exact_search") else 0 if "exact_search" in compact_ctx else None,
+                        1 if compact_ctx.get("diverse_search") else 0 if "diverse_search" in compact_ctx else None,
+                        compact_ctx.get("lambda"),
+                    ),
+                )
+            else:
+                # ensure there is at least a row for empty ctx
+                self._db.execute(
+                    "INSERT OR IGNORE INTO contexts(ctx_hash, nprobe, exact_search, diverse_search, lambda) VALUES (?, NULL, NULL, NULL, NULL)",
+                    (ch,),
+                )
+            # votes upsert
+            self._db.execute(
+                "INSERT OR REPLACE INTO votes(query_hash, ctx_hash, passage_id, relevant, ts) VALUES (?, ?, ?, ?, ?)",
+                (qh, ch, pid, rel, ts),
+            )
+            self._db.commit()
+
+    def get_vote(self, query: str, passage_id: str):
+        """Return latest vote True/False for (query, passage_id) or None if unseen."""
+        qh = self._hash_query(query)
+        pid = str(passage_id)
+        try:
+            if not os.path.exists(self.file_path):
+                return None
+            # Read tail blocks backwards without loading entire file
+            with open(self.file_path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                buffer = bytearray()
+                pos = f.tell()
+                lines_seen = 0
+                while pos > 0 and lines_seen < self.tail_scan_limit:
+                    step = min(4096, pos)
+                    pos -= step
+                    f.seek(pos)
+                    chunk = f.read(step)
+                    buffer[:0] = chunk
+                    while True:
+                        nl = buffer.rfind(b"\n")
+                        if nl == -1:
+                            break
+                        line = buffer[nl+1:]
+                        del buffer[nl:]
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line.decode("utf-8"))
+                            if rec.get("query_hash") == qh and str(rec.get("passage_id")) == pid:
+                                return bool(rec.get("relevant"))
+                        except Exception:
+                            pass
+                        lines_seen += 1
+                # Check remaining buffer (start of file)
+                if buffer:
+                    try:
+                        rec = json.loads(buffer.decode("utf-8"))
+                        if rec.get("query_hash") == qh and str(rec.get("passage_id")) == pid:
+                            return bool(rec.get("relevant"))
+                    except Exception:
+                        pass
+            return None
+        except Exception:
+            return None
+
+
+# Instantiate vote store under VM root folder (override with VOTES_DIR if set)
+_votes_dir = os.environ.get('VOTES_DIR', '/home/ubuntu/votes')
+vote_store = DiskVoteStore(_votes_dir)
+# ============================ [disk-vote] END additions ============================
+
+
+# ============================ [query-cache] BEGIN additions ============================
+from collections import OrderedDict
+
+class QueryResultCache:
+    """Thread-safe, memory-bounded LRU cache for query results.
+
+    Keyed by (query_hash, ctx_hash, n_docs). Values are the already JSON-serializable
+    results dict as returned by the API (i.e., after numpy -> list conversion).
+    """
+
+    def __init__(self, max_entries: int = 5000) -> None:
+        self.max_entries = int(max_entries)
+        self._store: OrderedDict[tuple, dict] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def _make_key(self, query: str, ctx: dict | None, n_docs: int) -> tuple:
+        qh = DiskVoteStore._hash_query(query)
+        ch = DiskVoteStore._hash_ctx(ctx)
+        return (qh, ch, int(n_docs))
+
+    def get(self, query: str, ctx: dict | None, n_docs: int):
+        key = self._make_key(query, ctx, n_docs)
+        with self._lock:
+            val = self._store.get(key)
+            if val is not None:
+                self._store.move_to_end(key, last=True)
+            return val
+
+    def set(self, query: str, ctx: dict | None, n_docs: int, results: dict) -> None:
+        key = self._make_key(query, ctx, n_docs)
+        with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key, last=True)
+            self._store[key] = results
+            while len(self._store) > self.max_entries:
+                self._store.popitem(last=False)
+
+
+query_cache = QueryResultCache()
+# ============================ [query-cache] END additions ============================
 class Item:
     def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None) -> None:
         self.query = query
@@ -139,6 +389,27 @@ def search():
         else:
             print("Processing a single query at once. ")
             query_input=request.json['query']
+        # Build canonical config for caching key
+        request_cfg = {
+            'nprobe': request.json.get('nprobe', None),
+            'exact_search': request.json.get('exact_search', False),
+            'diverse_search': request.json.get('diverse_search', False),
+            'lambda': request.json.get('lambda', 0.5),
+        }
+        canon_cfg = DiskVoteStore._canonicalize_ctx(request_cfg)
+        # Fast-path cache only for single-query, no expansion mode
+        if isinstance(query_input, str) and not request.json.get('expand_index_id'):
+            cached = query_cache.get(query_input, canon_cfg, request.json.get('n_docs', 1))
+            if cached is not None:
+                return jsonify({
+                    "message": f"Cache hit for '{query_input}'",
+                    "query": query_input,
+                    "n_docs": request.json.get('n_docs', 1),
+                    "nprobe": request.json.get('nprobe', None),
+                    "expand_index_id" : request.json.get('expand_index_id'),
+                    "expand_offset" : request.json.get('expand_offset', 1),
+                    "results": cached,
+                }), 200
         item = Item(
             query=query_input,
             n_docs=request.json.get('n_docs', 1),
@@ -160,8 +431,7 @@ def search():
             results = search_queue.search(item)
             timer.cancel()
 
-            # print(" ========= DEBUGGGGGG ======= Structured results from search route:")
-            # print(json.dumps(results, indent=2, ensure_ascii=False))
+
 
             def convert_ndarrays(obj):
                 if isinstance(obj, np.ndarray):
@@ -174,6 +444,12 @@ def search():
                     return obj
 
             results = convert_ndarrays(results)
+            # Populate cache on successful search for single query, non-expansion
+            if isinstance(query_input, str) and not request.json.get('expand_index_id'):
+                try:
+                    query_cache.set(query_input, canon_cfg, request.json.get('n_docs', 1), results)
+                except Exception:
+                    pass
 
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
@@ -196,6 +472,41 @@ def search():
         error_message = f"An error occurred: {str(e)}\n{''.join(tb_lines)}"
         return jsonify({"message": error_message}), 500
     
+@app.route('/vote', methods=['POST'])
+def vote():
+    """[disk-vote] Record a relevance vote for a passage tied to a specific query.
+
+    Body: { query: str, passage_id: str|int, relevant: bool, config?: { ... } }
+    Always pass the original passage_id (even if UI shows expanded context).
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        query = data.get('query')
+        passage_id = data.get('passage_id')
+        relevant = data.get('relevant')
+        # accept both 'config' (preferred) and 'ctx' (back-compat)
+        ctx = data.get('config', data.get('ctx'))  # optional
+        if not query or passage_id is None or relevant is None:
+            return jsonify({"status": "error", "message": "Missing query, passage_id, or relevant"}), 400
+        vote_store.record_vote(query, str(passage_id), bool(relevant), ctx=ctx if isinstance(ctx, dict) else None)
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/vote/peek', methods=['POST'])
+def vote_peek():
+    """[disk-vote] Optional helper to retrieve last vote for a (query, passage_id)."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        query = data.get('query')
+        passage_id = data.get('passage_id')
+        if not query or passage_id is None:
+            return jsonify({"status": "error", "message": "Missing query or passage_id"}), 400
+        val = vote_store.get_vote(query, str(passage_id))
+        return jsonify({"status": "ok", "vote": val}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/current_search')
 def current_search():
     with search_queue.lock:
