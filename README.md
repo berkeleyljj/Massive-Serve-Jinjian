@@ -12,7 +12,12 @@ This repository contains the Compact‑DS Dive Public API and server code. It ex
     passages/                # *.jsonl shards for text lookup
 ```
 
-## Quickstart (Local Dev)
+## Quickstart 
+
+### Datasets
+- [alrope/CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
+  - Please refer to the linked Hugging Face page for detailed information on the dataset. 
+
 
 ### 1) Download the dataset/index from Hugging Face
 
@@ -91,9 +96,9 @@ curl -X POST http://compactds.duckdns.org:30888/search \
   -d '{"queries": ["quantum computing", "Who is Nikola Tesla", "AI ethics"], "n_docs": 2}'
 ```
 
-## API
+## API Overview
 
-For the full reference and examples, see `API_DOCUMENTATION.md`. Below is a brief, readability-first summary.
+For the full reference and examples, see `API_DOCUMENTATION.md`. 
 
 - Endpoint: `POST /search` (JSON)
 - Request: use either `query: string` or `queries: string[]`
@@ -105,10 +110,6 @@ curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
   -d '{"query": "machine learning", "n_docs": 5, "nprobe": 32}'
 ```
-## Datasets
-
-- CompactDS‑102GB: [alrope/CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
-  - Please refer to the linked Hugging Face page for detailed information on the dataset. 
 
 
 ## Citation
