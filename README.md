@@ -81,8 +81,9 @@ python -m massive_serve.cli serve --domain_name index_dev
 By default the server starts at port `30888` and exposes `/search` and `/vote` endpoints.
 
 ### 5) Test the API
+For the full reference and examples, see `API_DOCUMENTATION.md`. 
 
-Basic single query:
+Single query:
 ```bash
 curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
@@ -94,21 +95,6 @@ Batch queries:
 curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
   -d '{"queries": ["quantum computing", "Who is Nikola Tesla", "AI ethics"], "n_docs": 2}'
-```
-
-## API Overview
-
-For the full reference and examples, see `API_DOCUMENTATION.md`. 
-
-- Endpoint: `POST /search` (JSON)
-- Request: use either `query: string` or `queries: string[]`
-- Common options: `n_docs`, `nprobe`, `exact_search`, `diverse_search`, `lambda`
-
-Minimal example:
-```bash
-curl -X POST http://compactds.duckdns.org:30888/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "machine learning", "n_docs": 5, "nprobe": 32}'
 ```
 
 
