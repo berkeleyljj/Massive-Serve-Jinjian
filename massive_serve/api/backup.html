@@ -266,6 +266,9 @@
   </div>
 
   <script>
+    // Preserve multi-line query content with single-line input by intercepting paste
+    window.__preservedPasteRaw = null;       // raw text with \n
+    window.__preservedPasteDisplay = null;   // what is shown in the input (\n -> space)
     // Query History Management
     let queryHistory = [];
 
@@ -710,7 +713,13 @@
       // Hide parameter panel when submitting query
       document.getElementById('paramPanel').classList.add('hidden');
       
-      const query = document.getElementById('queryInput').value.trim();
+      const qi = document.getElementById('queryInput');
+      const displayVal = qi.value;
+      // Prefer preserved raw (with newlines) if input hasn't diverged since paste
+      let candidate = (window.__preservedPasteRaw && window.__preservedPasteDisplay === displayVal)
+        ? window.__preservedPasteRaw
+        : displayVal.replace(/\\n/g, "\n"); // allow manual \\n entry
+      const query = candidate.replace(/\r\n|\r/g, "\n").trim();
       const nprobe = document.getElementById('nprobe').value;
       const k = document.getElementById('k').value;
       const useRerank = document.getElementById('rerankToggle').classList.contains('enabled');
@@ -1220,6 +1229,27 @@
       if (toggleParamsBtn) {
         toggleParamsBtn.addEventListener('click', () => {
           setTimeout(positionParamPanel, 10); // Small delay to ensure panel is visible
+        });
+      }
+
+      // Paste handling for query input to preserve internal newlines while keeping box single-line
+      const qi = document.getElementById('queryInput');
+      if (qi) {
+        qi.addEventListener('paste', (e) => {
+          try {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            const raw = (text || '').replace(/\r\n|\r/g, "\n");
+            window.__preservedPasteRaw = raw;
+            window.__preservedPasteDisplay = raw.replace(/\n/g, ' ');
+            qi.value = window.__preservedPasteDisplay;
+          } catch (_) { /* no-op */ }
+        });
+        qi.addEventListener('input', () => {
+          if (window.__preservedPasteDisplay !== qi.value) {
+            window.__preservedPasteRaw = null;
+            window.__preservedPasteDisplay = null;
+          }
         });
       }
     });

@@ -50,6 +50,11 @@ def print_mem_use(label=""):
         pass
 
 from massive_serve.api.api_index import get_datastore
+try:
+    # Inject logger into ivf_pq after QUERY_LOGGER is defined
+    from massive_serve.src.indicies import ivf_pq as _ivf
+except Exception:
+    _ivf = None
 
 # ANSI color codes
 CYAN = '\033[36m'
@@ -297,7 +302,7 @@ class QueryLogger:
         self.file_path = os.path.join(self.base_dir, file_name)
         self._lock = threading.Lock()
 
-    def log(self, query: str, canon_cfg: dict, n_docs: int, latency_s: float, expand_index_id=None, expand_offset=1) -> None:
+    def log(self, query: str, canon_cfg: dict, n_docs: int, latency_s: float, expand_index_id=None, expand_offset=1, big_k=None) -> None:
         rec = {
             "ts": int(time.time()),
             "query_hash": DiskVoteStore._hash_query(query),
@@ -308,6 +313,11 @@ class QueryLogger:
             "expand_index_id": expand_index_id,
             "expand_offset": expand_offset,
         }
+        if big_k is not None:
+            try:
+                rec["K"] = int(big_k)
+            except Exception:
+                pass
         line = json.dumps(rec, ensure_ascii=False)
         with self._lock:
             with open(self.file_path, 'a', encoding='utf-8') as f:
@@ -318,76 +328,14 @@ class QueryLogger:
 
 _query_log_dir = os.environ.get('QUERY_LOG_DIR', '/home/ubuntu/query_logs')
 QUERY_LOGGER = QueryLogger(_query_log_dir)
+try:
+    if _ivf and hasattr(_ivf, 'set_query_logger'):
+        _ivf.set_query_logger(QUERY_LOGGER)
+except Exception:
+    pass
 # ============================ [query-log] END additions ============================
 
-# ============================ [disk-query-cache] BEGIN additions ============================
-class DiskQueryCache:
-    """SQLite-backed cache for query results, keyed by (query_hash, ctx_hash, n_docs).
-
-    Stores JSON-serialized results for durability across restarts.
-    """
-
-    def __init__(self, base_dir: str) -> None:
-        self.base_dir = base_dir
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.db_path = os.path.join(self.base_dir, "query_cache.sqlite3")
-        self._lock = threading.Lock()
-        self._db = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._db.execute("PRAGMA journal_mode=WAL;")
-        self._db.execute("PRAGMA synchronous=NORMAL;")
-        self._create_tables()
-
-    def _create_tables(self) -> None:
-        self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS qcache (
-              query_hash TEXT NOT NULL,
-              ctx_hash   TEXT NOT NULL,
-              n_docs     INTEGER NOT NULL,
-              ts         INTEGER NOT NULL,
-              results    TEXT NOT NULL,
-              PRIMARY KEY (query_hash, ctx_hash, n_docs)
-            )
-            """
-        )
-        self._db.commit()
-
-    def _key(self, query: str, ctx: dict | None) -> tuple[str, str]:
-        qh = DiskVoteStore._hash_query(query)
-        ch = DiskVoteStore._hash_ctx(ctx)
-        return qh, ch
-
-    def get(self, query: str, ctx: dict | None):
-        qh, ch = self._key(query, ctx)
-        try:
-            with self._lock:
-                cur = self._db.execute(
-                    "SELECT results FROM qcache WHERE query_hash=? AND ctx_hash=? ORDER BY n_docs DESC LIMIT 1",
-                    (qh, ch),
-                )
-                row = cur.fetchone()
-            if not row:
-                return None
-            return json.loads(row[0])
-        except Exception:
-            return None
-
-    def set(self, query: str, ctx: dict | None, n_docs: int, results: dict) -> None:
-        qh, ch = self._key(query, ctx)
-        try:
-            blob = json.dumps(results, ensure_ascii=False)
-            with self._lock:
-                self._db.execute(
-                    "INSERT OR REPLACE INTO qcache(query_hash, ctx_hash, n_docs, ts, results) VALUES (?, ?, ?, ?, ?)",
-                    (qh, ch, int(n_docs), int(time.time()), blob),
-                )
-                self._db.commit()
-        except Exception:
-            pass
-
-_query_cache_dir = os.environ.get('QUERY_CACHE_DIR', '/home/ubuntu/query_cache')
-disk_query_cache = DiskQueryCache(_query_cache_dir)
-# ============================ [disk-query-cache] END additions ============================
+ 
 class Item:
     def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None) -> None:
         self.query = query
@@ -508,18 +456,7 @@ def search():
                     return obj
 
             results = convert_ndarrays(results)
-            # Log every query with canonical config for future analysis
-            try:
-                latency = round(time.time() - start_time, 4)
-                if isinstance(query_input, list):
-                    for q in query_input:
-                        QUERY_LOGGER.log(q, canon_cfg, request.json.get('n_docs', 1), latency,
-                                         request.json.get('expand_index_id'), request.json.get('expand_offset', 1))
-                else:
-                    QUERY_LOGGER.log(query_input, canon_cfg, request.json.get('n_docs', 1), latency,
-                                     request.json.get('expand_index_id'), request.json.get('expand_offset', 1))
-            except Exception:
-                pass
+            # Query logging moved into ivf_pq.search
 
             return jsonify({
                 "message": f"Search completed for '{item.query}' from {item.domains}",
@@ -554,8 +491,7 @@ def vote():
         query = data.get('query')
         passage_id = data.get('passage_id')
         relevant = data.get('relevant')
-        # accept both 'config' (preferred) and 'ctx' (back-compat)
-        ctx = data.get('config', data.get('ctx'))  # optional
+        ctx = data.get('config') 
         if not query or passage_id is None or relevant is None:
             return jsonify({"status": "error", "message": "Missing query, passage_id, or relevant"}), 400
         vote_store.record_vote(query, str(passage_id), bool(relevant), ctx=ctx if isinstance(ctx, dict) else None)
@@ -653,6 +589,7 @@ def main():
 """
     print(test_request)
     print(f"Deployment completed in {time.time() - startup_start:.2f} seconds")
+
     app.run(host='0.0.0.0', port=port)
     # app.run(host='0.0.0.0', port=port, debug=True, use_reloader=True)
 

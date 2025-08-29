@@ -15,6 +15,27 @@ import faiss
 import numpy as np
 import torch
 from massive_serve.api.serve import query_encoder
+try:
+    from massive_serve.api.serve import QUERY_LOGGER  # optional query logger
+except Exception:
+    QUERY_LOGGER = None
+
+# Allow server to inject a logger post-import to avoid circular import timing
+def set_query_logger(logger):
+    global QUERY_LOGGER
+    QUERY_LOGGER = logger
+
+# Enforce single-threaded FAISS/BLAS for reproducibility during testing
+try:
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    try:
+        faiss.omp_set_num_threads(1)
+    except Exception:
+        pass
+except Exception:
+    pass
+
 import psutil
 import os
 import logging
@@ -444,7 +465,7 @@ class IVFPQIndexer(object):
 
         # Optimize for speed: cap at 3200 for maximum speed
         MAX_K = 3200  # Capped for speed
-        base_Ks = [1000]
+        base_Ks = [1000]  # Always search with K=1000 for testing; slice later
         
         print(f"[DEBUG] Input k={k}, type={type(k)}")
         # Ensure k is an integer
@@ -467,10 +488,13 @@ class IVFPQIndexer(object):
         best_scores = None
         best_total = 0
 
+        used_big_k = None
         for attempt in range(len(K_ranges)):
             K = K_ranges[attempt]
             print(f"[SEARCH] Attempt {attempt + 1}: K is {K}")
+            used_big_k = K
             all_scores, all_indices = self.index.search(query_embs, K)
+
 
             # === Parallel get_retrieved_passages ===
             def retrieve_for_query(i):
@@ -502,14 +526,14 @@ class IVFPQIndexer(object):
                 unique = []
                 # seen_texts = set()  # Use set for O(1) lookup instead of list
                 for passage in raw_passages:
-                    text = passage.get("text", "").strip()
+                    #text = passage.get("text", "").strip()
                     
-                    # # Keep word limit consistent as requested
-                    # min_words = 20 
+                    # Keep word limit consistent as requested
+                    # min_words = 0 
                     # if len(text.split()) < min_words:
                     #     continue
                     
-                    # # Use set for faster redundancy check
+                    # Use set for faster redundancy check
                     # if text in seen_texts:
                     #     continue
                     
@@ -517,8 +541,8 @@ class IVFPQIndexer(object):
                     
                     # seen_texts.add(text)
                     unique.append(passage)
-                    # if len(unique) >= k:
-                    #     break
+                    if len(unique) >= k:
+                        break
 
                 all_batch_passages.append(unique)
 
@@ -547,6 +571,29 @@ class IVFPQIndexer(object):
             print(f"[SEARCH] Completed with fewer than requested top-{k} results")
 
         t1 = time.time()
+
+        # Log queries (moved from serve.py)
+        try:
+            if QUERY_LOGGER is not None:
+                latency = round(t1 - t0, 4)
+                cfg = {
+                    'nprobe': nprobe,
+                    'exact_search': bool(exact_rerank),
+                    'diverse_search': bool(diverse_rerank),
+                }
+                if bool(diverse_rerank) and (lambda_val is not None):
+                    try:
+                        cfg['lambda'] = round(float(lambda_val), 2)
+                    except Exception:
+                        pass
+                # raw_query may be str or list
+                if isinstance(raw_query, list):
+                    for q in raw_query:
+                        QUERY_LOGGER.log(q, cfg, k, latency, expand_index_id, expand_offset, big_k=used_big_k)
+                else:
+                    QUERY_LOGGER.log(raw_query, cfg, k, latency, expand_index_id, expand_offset, big_k=used_big_k)
+        except Exception:
+            pass
         print(f"[SEARCH] Completed batch of {len(raw_queries)} in {t1 - t0:.2f}s")
         print(f"[DEBUG] Returning scores of shape: {len(all_final_scores)} x {len(all_final_scores[0]) if all_final_scores else 0}")
         print(f"[DEBUG] Returning passages of shape: {len(all_final_passages)} x {len(all_final_passages[0]) if all_final_passages else 0}")

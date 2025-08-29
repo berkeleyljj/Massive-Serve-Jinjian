@@ -28,31 +28,88 @@ def save_embedding_to_cache(passage_id, embedding):
     cache_path = os.path.join(CACHE_DIR, f"{passage_id}.npy")
     np.save(cache_path, embedding)
 
+# Old
+# def embed_passages(args, raw_query, texts, passage_ids, model):
+#     print(f"Embedding {len(texts)} passages (after caching)...")
+#     texts_to_embed = []
+#     ids_to_embed = []
+#     embeddings = {}
+
+#     texts_to_embed.append(raw_query) # Always skip caching for raw_query
+#     ids_to_embed.append(None)
+#     for text, pid in zip(texts, passage_ids):
+#         cached = load_embedding_from_cache(pid)
+#         if cached is not None:
+#             embeddings[text] = cached
+#         else:
+#             texts_to_embed.append(text)
+#             ids_to_embed.append(pid)
+
+#     if texts_to_embed:
+#         encoded = model.encode(texts_to_embed, batch_size=min(128, args.per_gpu_batch_size), instruction="<|embed|>\n")
+#         for pid, emb, original_text in zip(ids_to_embed, encoded, texts_to_embed):
+#             if np.isnan(emb).any():
+#                 logging.warning(f"[WARNING] Skipping text due to NaN in embedding: {original_text}")
+#                 continue
+#             embeddings[original_text] = emb
+#             if pid is not None:
+#                 save_embedding_to_cache(pid, emb)  # Cache only if it's a passage embedding, not the query -- query has None as pid to differ
+#     return embeddings
+
 def embed_passages(args, raw_query, texts, passage_ids, model):
-    print(f"Embedding {len(texts)} passages (after caching)...")
+    # Decide what we can pull from cache vs. what we need to compute
     texts_to_embed = []
     ids_to_embed = []
     embeddings = {}
 
-    texts_to_embed.append(raw_query) # Always skip caching for raw_query
+    # Always (re)compute the query; do not cache queries
+    texts_to_embed.append(raw_query)
     ids_to_embed.append(None)
+
+    cached_hit_ids = []
+    cached_miss_ids = []
+
     for text, pid in zip(texts, passage_ids):
         cached = load_embedding_from_cache(pid)
         if cached is not None:
             embeddings[text] = cached
+            cached_hit_ids.append(pid)
         else:
             texts_to_embed.append(text)
             ids_to_embed.append(pid)
+            cached_miss_ids.append(pid)
 
+    total = len(texts)
+    hits = len(cached_hit_ids)
+    misses = len(cached_miss_ids)
+
+    # Clean, single-line summary of cache usage
+    print(f"[CACHE] Using cached embeddings for {hits}/{total} passages; "
+          f"computing {misses} new passage embeddings + 1 query.")
+    if hits > 0:
+        print(f"[CACHE] Cache directory: {os.path.abspath(CACHE_DIR)}")
+
+    # Actually embed the (query + cache-miss passages)
     if texts_to_embed:
-        encoded = model.encode(texts_to_embed, batch_size=min(128, args.per_gpu_batch_size), instruction="<|embed|>\n")
+        encoded = model.encode(
+            texts_to_embed,
+            batch_size=min(128, args.per_gpu_batch_size),
+            instruction="<|embed|>\n"
+        )
+        saved_count = 0
         for pid, emb, original_text in zip(ids_to_embed, encoded, texts_to_embed):
             if np.isnan(emb).any():
                 logging.warning(f"[WARNING] Skipping text due to NaN in embedding: {original_text}")
                 continue
             embeddings[original_text] = emb
+            # Cache only passage embeddings (pid != None). Query has pid=None.
             if pid is not None:
-                save_embedding_to_cache(pid, emb)  # Cache only if it's a passage embedding, not the query -- query has None as pid to differ
+                save_embedding_to_cache(pid, emb)
+                saved_count += 1
+
+        if saved_count > 0:
+            print(f"[CACHE] Saved {saved_count} new passage embeddings to cache.")
+
     return embeddings
 
 
