@@ -2,18 +2,6 @@
 
 This repository contains the Compact‑DS Dive Public API and server code. It exposes a production‑ready Flask service for retrieval‑augmented generation (RAG) backed by a billion‑scale FAISS IVFPQ index. The server provides adjustable settings and search modes at low-latency. A small CLI helps download/prepare indices and start the server, and an example domain (`index_dev/`) shows the expected data layout. Please refer to the Quickstart below to set up.
 
-### What this repo provides
-
-- API server: a Flask service exposing `POST /search` and `POST /vote` with optional exact/diverse reranking and on‑disk vote storage.
-  - Server entry: `massive_serve/api/serve.py`
-  - Endpoints: `/search`, `/vote`, plus small utilities (`/current_search`, `/queue_size`)
-- Retrieval backend: FAISS IVFPQ index with passage lookup via position arrays.
-  - Core code: `massive_serve/src/indicies/ivf_pq.py`, `massive_serve/src/search.py`
-- CLI tooling: start the server and prepare/download large index files.
-  - CLI entry: `python -m massive_serve.cli`
-  - Commands: `serve`, `upload-data` (HF), helpers in `massive_serve/data_utils.py`
-- Example domain for local dev: `index_dev/` with `config.json`, `index/`, and `passages/` layout used in the Quickstart below.
-
 ### Expected data layout (under DATASTORE_PATH)
 
 ```
@@ -71,13 +59,9 @@ If your `index/` folder contains split parts, combine them into a single `.faiss
 ```bash
 cd $DATASTORE_PATH/index_dev/index
 # Example names: index_IVFPQ.100000000.768.65536.64.faiss_aa, ..._ab, ..._ac, ...
-cat $(ls index_IVFPQ.100000000.768.65536.64.faiss_* | sort) > index_IVFPQ.100000000.768.65536.64.faiss
+cat $(ls index_IVFPQ.100000000.768.65536.64.faiss_* | sort) > index_IVFPQ.index.faiss
 ```
 
-- If your split format uses a `.split/` directory with `.chunk_###` files and a JSON metadata (e.g., `index_metadata.json`), you can also combine via the helper (optional alternative):
-```bash
-python -m massive_serve.data_utils --mode combine --data_dir $DATASTORE_PATH/index_dev
-```
 
 After combining, ensure there is exactly one `.faiss` file in `index/` (e.g., `index/index_full.faiss`).
 
@@ -121,18 +105,10 @@ curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
   -d '{"query": "machine learning", "n_docs": 5, "nprobe": 32}'
 ```
-
-Votes: `POST /vote` to record relevance feedback. See `VOTES_DOCUMENTATION.md` for storage details and schema.
-
 ## Datasets
 
-- CompactDS‑102GB IVFPQ shards (Hugging Face): [alrope/CompactDS-102GB – embeddings/index_IVFPQ](https://huggingface.co/datasets/alrope/CompactDS-102GB/tree/main/embeddings/index_IVFPQ)
-  - Sharded FAISS parts (`...faiss_aa`, `...faiss_ab`, …) plus `.meta`. Concatenate parts in order; exclude `.meta`. See Quickstart step 3.
-
-## Datasets
-
-- CompactDS‑102GB IVFPQ shards (Hugging Face): [alrope/CompactDS-102GB – embeddings/index_IVFPQ](https://huggingface.co/datasets/alrope/CompactDS-102GB/tree/main/embeddings/index_IVFPQ)
-  - Sharded FAISS parts (`...faiss_aa`, `...faiss_ab`, …) plus `.meta`. Concatenate parts in order; exclude `.meta`. See Quickstart step 3.
+- CompactDS‑102GB: [alrope/CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
+  - Please refer to the linked Hugging Face page for detailed information on the dataset. 
 
 
 ## Citation
