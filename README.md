@@ -16,8 +16,13 @@ This repository contains the Compact‑DS Dive Public API and server code. It ex
 
 ### Datasets
 - [CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
-  - Please refer to the linked Hugging Face page for detailed information on the dataset. 
+  - Core index and passages. Please refer to the dataset card for details.
 - [Full embeddings](https://huggingface.co/datasets/alrope/cpds_embeddings/tree/main)
+  - PubMed embeddings are sharded, so combine locally if needed:
+```bash
+cat massiveds-pubmed--passages7_00.pkl_{aa,ab,ac,ad,ae,af,ag,ah,ai} \
+  > massiveds-pubmed--passages7_00.pkl
+```
 
 
 ### 1) Download the dataset/index from Hugging Face
