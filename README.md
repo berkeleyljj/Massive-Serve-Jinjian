@@ -15,8 +15,9 @@ This repository contains the Compact‑DS Dive Public API and server code. It ex
 ## Quickstart 
 
 ### Datasets
-- [alrope/CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
+- [CompactDS-102GB](https://huggingface.co/datasets/alrope/CompactDS-102GB)
   - Please refer to the linked Hugging Face page for detailed information on the dataset. 
+- [Full embeddings](https://huggingface.co/datasets/alrope/cpds_embeddings/tree/main)
 
 
 ### 1) Download the dataset/index from Hugging Face
@@ -37,7 +38,7 @@ Notes:
 - The directory should include an `index/` directory with a FAISS index and a `passages/` directory with `.jsonl` files.
 - If your index is uploaded in split/chunked form, see Step 3 to combine shards.
 
-### 2) Build the position mapping arrays (passage offsets)
+### 2) Build the position mapping arrays 
 
 The server looks up passage text by FAISS index id using position mapping arrays. Generate them once from your `passages/` directory:
 
@@ -56,17 +57,16 @@ This writes three files next to the script (and the server expects them under `i
 - `index_dev/filename_index_array.npy`
 - `index_dev/filename_list.npy`
 
-### 3) Combine FAISS index shards (if present)
+### 3) Combine FAISS index shards
 
-If your `index/` folder contains split parts, combine them into a single `.faiss` file before serving.
+Your `index/` folder contains split parts, combine them into a single `.faiss` file before serving.
 
 - Simple shard set (concatenate all `...faiss_**` parts in order; do NOT include the `.meta` file):
 ```bash
 cd $DATASTORE_PATH/index_dev/index
 # Example names: index_IVFPQ.100000000.768.65536.64.faiss_aa, ..._ab, ..._ac, ...
-cat $(ls index_IVFPQ.100000000.768.65536.64.faiss_* | sort) > index_IVFPQ.index.faiss
+cat $(ls index_IVFPQ.100000000.768.65536.64.faiss_* | sort) > index_full.faiss
 ```
-
 
 After combining, ensure there is exactly one `.faiss` file in `index/` (e.g., `index/index_full.faiss`).
 
@@ -81,7 +81,7 @@ python -m massive_serve.cli serve --domain_name index_dev
 By default the server starts at port `30888` and exposes `/search` and `/vote` endpoints.
 
 ### 5) Test the API
-For the full reference and examples, see `API_DOCUMENTATION.md`. 
+For the full reference and examples, see `API_DOCUMENTATION.md`. You can use curl commands to run quick tests. 
 
 Single query:
 ```bash
@@ -90,7 +90,7 @@ curl -X POST http://compactds.duckdns.org:30888/search \
   -d '{"query": "Tell me more about Albert Einstein", "n_docs": 5, "nprobe": 32}'
 ```
 
-Batch queries:
+Batched queries:
 ```bash
 curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
