@@ -101,8 +101,12 @@ curl -X POST http://compactds.duckdns.org:30888/search \
   -H "Content-Type: application/json" \
   -d '{"queries": ["quantum computing", "Who is Nikola Tesla", "AI ethics"], "n_docs": 2}'
 ```
+##  DiskANN build
 
-
+### Download full precision
+Look at [donwload file](DiskANN-build/download.py)
+### Convert the embedding
+Look at [convert file](DiskANN-build/convert.py)
 ## Citation
 ```
 @article{lyu2025compactds,
