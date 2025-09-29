@@ -444,7 +444,7 @@ class IVFPQIndexer(object):
 
     
     # Batched search from concurrent.futures import ThreadPoolExecutor
-    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False, diverse_rerank=False, lambda_val=0.5):
+    def search(self, raw_query, query_embs, k, nprobe, expand_index_id=None, expand_offset=1, exact_rerank=False, diverse_rerank=False, lambda_val=0.5, min_words=None):
         if expand_index_id is not None:
             print(f"[EXPANSION MODE] Expanding index_id={expand_index_id} with offset={expand_offset}")
             result = self.expand_passage(expand_index_id, offset=expand_offset)
@@ -508,7 +508,30 @@ class IVFPQIndexer(object):
             all_batch_passages = []
 
 
+            # Optional length filter before choosing top-k
+            min_words_val = None
+            try:
+                if min_words is not None:
+                    min_words_val = int(min_words)
+            except Exception:
+                min_words_val = None
+
             for i, raw_passages in enumerate(all_raw_passages):
+                if min_words_val is not None and min_words_val > 0:
+                    try:
+                        raw_passages = [p for p in raw_passages if isinstance(p.get("text"), str) and len(p.get("text").strip().split()) >= min_words_val]
+                    except Exception:
+                        pass
+                # Attach original retrieval scores from FAISS to each passage for downstream rerankers
+                try:
+                    scores_i = all_scores[i]
+                    for j, passage in enumerate(raw_passages):
+                        try:
+                            passage["retrieval score"] = float(scores_i[j])
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 if exact_rerank:
                     try:
                         raw_passages = exact_rerank_topk(raw_passages, query_encoder)

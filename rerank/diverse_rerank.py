@@ -11,7 +11,7 @@ from normalize_text import normalize as nm
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 CACHE_DIR = "./embedding_cache"
 
-def diverse_rerank_topk(raw_passages, query_encoder, lambda_val=0.5):
+def diverse_rerank_topk(raw_passages, query_encoder, lambda_val):
     total_start = time.time()
     logging.info(f"Doing diverse reranking for {len(raw_passages)} total evaluation samples using lambda {lambda_val}...")
 
@@ -37,45 +37,65 @@ def diverse_rerank_topk(raw_passages, query_encoder, lambda_val=0.5):
     logging.info(f"Step 2: Embedding done in {time.time() - step_start:.2f}s")
 
     step_start = time.time()
-    query_emb = text_to_embeddings[raw_query].reshape(1, -1)
     ctx_embeddings = [text_to_embeddings[t] for t in ctxs]
     ctx_embeddings = np.vstack(ctx_embeddings)
     logging.info(f"Step 3: Embedding vector preparation done in {time.time() - step_start:.2f}s")
 
-    # === Optimized greedy reranking ===
+    # === Classic MMR (no |S| normalization; max redundancy; λ/(1−λ) weighting) ===
     step_start = time.time()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ctx_embeddings = torch.tensor(ctx_embeddings, dtype=torch.float32, device=device)  # (N, D)
     N = ctx_embeddings.shape[0]
 
-    # === Use precomputed exact score if available ===
+    # Candidate-to-candidate cosine (redundancy)
+    norms = torch.norm(ctx_embeddings, dim=1, keepdim=True).clamp_min(1e-12)
+    cosine_sim_matrix = (ctx_embeddings @ ctx_embeddings.T) / (norms @ norms.T)
+
+    # Determine relevance vector:
+    # - Prefer precomputed exact cosine scores if present
+    # - Else use original retrieval score if available
+    # - Else fall back to cosine similarity to the query (computed on-the-fly)
     if "exact score" in raw_passages[0]:
         rel_scores = torch.tensor(
             [p["exact score"] for p in raw_passages], dtype=torch.float32, device=device
         )
-        logging.info("Using precomputed 'exact score' as relevance score.")
-    else:
-        query_emb = torch.tensor(query_emb, dtype=torch.float32, device=device)  # (1, D)
-        rel_scores = torch.matmul(ctx_embeddings, query_emb.T).squeeze(-1)  # (N,)
-        logging.info("Computed relevance score via dot product with query.")
+        relevance_source = "exact"
+    elif "retrieval score" in raw_passages[0]:
+        rel_scores = torch.tensor(
+            [p.get("retrieval score", 0.0) for p in raw_passages], dtype=torch.float32, device=device
+        )
+        relevance_source = "retrieval"
 
-    sim_matrix = torch.matmul(ctx_embeddings, ctx_embeddings.T)  # (N, N)
+    # Clamp λ to [0, 1]
+    lambda_mult = float(lambda_val)
+    lambda_mult = max(0.0, min(1.0, lambda_mult))
 
     selected = []
     selected_idxs = []
     candidate_idxs = list(range(N))
 
-    for _ in range(N):
+    if N > 0:
+        first_idx = torch.argmax(rel_scores).item()
+        selected.append(raw_passages[first_idx])
+        selected_idxs.append(first_idx)
+        candidate_idxs.remove(first_idx)
+
+    # Greedy MMR selection
+    for _ in range(N - 1):
         if not candidate_idxs:
             break
 
+        # Max similarity to already-selected items (redundancy term)
         if selected_idxs:
-            div_penalty = sim_matrix[candidate_idxs][:, selected_idxs].sum(dim=1)
+            pen_mat = cosine_sim_matrix[candidate_idxs][:, selected_idxs]  
+            redundant = pen_mat.max(dim=1).values                           
         else:
-            div_penalty = torch.zeros(len(candidate_idxs), device=device)
+            redundant = torch.zeros(len(candidate_idxs), device=device)
 
-        scores = rel_scores[candidate_idxs] - lambda_val * div_penalty
+        # MMR score: λ * relevance - (1 - λ) * max redundancy
+        scores = lambda_mult * rel_scores[candidate_idxs] - (1.0 - lambda_mult) * redundant
+
         best_idx_local = torch.argmax(scores).item()
         best_idx = candidate_idxs[best_idx_local]
 

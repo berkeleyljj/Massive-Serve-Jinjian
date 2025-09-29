@@ -337,7 +337,7 @@ except Exception:
 
  
 class Item:
-    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None) -> None:
+    def __init__(self, query=None, query_embed=None, domains=ds_cfg.domain_name, n_docs=1, nprobe=None, expand_index_id=None, expand_offset=None, exact_rerank=False, use_diverse=False, lambda_val=None, min_words=None) -> None:
         self.query = query
         self.query_embed = query_embed
         self.domains = domains
@@ -349,6 +349,7 @@ class Item:
         self.exact_rerank = exact_rerank
         self.use_diverse = use_diverse
         self.lambda_val = lambda_val
+        self.min_words = min_words
     
     def get_dict(self,):
         dict_item = {
@@ -382,7 +383,7 @@ class SearchQueue:
                 self.current_search = item
                 if item.nprobe is not None:
                     self.datastore.index.nprobe = item.nprobe
-                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset, item.exact_rerank, item.use_diverse, item.lambda_val)
+                results = self.datastore.search(item.query, item.n_docs, item.nprobe, item.expand_index_id, item.expand_offset, item.exact_rerank, item.use_diverse, item.lambda_val, min_words=item.min_words)
                 self.current_search = None
                 return results
             else:
@@ -418,8 +419,14 @@ def search():
             'nprobe': request.json.get('nprobe', None),
             'exact_search': request.json.get('exact_search', False),
             'diverse_search': request.json.get('diverse_search', False),
-            'lambda': request.json.get('lambda', 0.5),
         }
+        lambda_in = request.json.get('lambda', None)
+        # Enforce that lambda must be provided when diverse_search is enabled
+        if request_cfg['diverse_search'] and lambda_in is None:
+            return jsonify({
+                "message": "Missing 'lambda' for diverse_search",
+                "error": "missing_lambda"
+            }), 400
         canon_cfg = DiskVoteStore._canonicalize_ctx(request_cfg)
         item = Item(
             query=query_input,
@@ -432,7 +439,8 @@ def search():
             # use_diverse=request.json.get('use_diverse', False),  # ORIGINAL - commented out
             exact_rerank = request.json.get('exact_search', False),
             use_diverse=request.json.get('diverse_search', False),
-            lambda_val=request.json.get('lambda', 0.5),
+            lambda_val=lambda_in,
+            min_words=request.json.get('min_words', None),
         )
 
         # Perform the search synchronously with 600s timeout

@@ -19,42 +19,18 @@ CACHE_DIR = "./embedding_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 def load_embedding_from_cache(passage_id):
+    # # temp for latency
+    # return None
     cache_path = os.path.join(CACHE_DIR, f"{passage_id}.npy")
     if os.path.exists(cache_path):
         return np.load(cache_path)
     return None
 
 def save_embedding_to_cache(passage_id, embedding):
+    # # temp for latency
+    # return 
     cache_path = os.path.join(CACHE_DIR, f"{passage_id}.npy")
     np.save(cache_path, embedding)
-
-# Old
-# def embed_passages(args, raw_query, texts, passage_ids, model):
-#     print(f"Embedding {len(texts)} passages (after caching)...")
-#     texts_to_embed = []
-#     ids_to_embed = []
-#     embeddings = {}
-
-#     texts_to_embed.append(raw_query) # Always skip caching for raw_query
-#     ids_to_embed.append(None)
-#     for text, pid in zip(texts, passage_ids):
-#         cached = load_embedding_from_cache(pid)
-#         if cached is not None:
-#             embeddings[text] = cached
-#         else:
-#             texts_to_embed.append(text)
-#             ids_to_embed.append(pid)
-
-#     if texts_to_embed:
-#         encoded = model.encode(texts_to_embed, batch_size=min(128, args.per_gpu_batch_size), instruction="<|embed|>\n")
-#         for pid, emb, original_text in zip(ids_to_embed, encoded, texts_to_embed):
-#             if np.isnan(emb).any():
-#                 logging.warning(f"[WARNING] Skipping text due to NaN in embedding: {original_text}")
-#                 continue
-#             embeddings[original_text] = emb
-#             if pid is not None:
-#                 save_embedding_to_cache(pid, emb)  # Cache only if it's a passage embedding, not the query -- query has None as pid to differ
-#     return embeddings
 
 def embed_passages(args, raw_query, texts, passage_ids, model):
     # Decide what we can pull from cache vs. what we need to compute
