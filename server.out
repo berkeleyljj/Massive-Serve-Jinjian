@@ -1,14 +1,0 @@
-Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 3/3 [00:00<00:00, 79.73it/s]
-Created GritLM: torch.bfloat16 dtype, mean pool, embedding mode, bbcc attn
-Traceback (most recent call last):
-  File "/home/ubuntu/massive-serve-dev/massive_serve/api/serve.py", line 52, in <module>
-    from massive_serve.api.api_index import get_datastore
-  File "/home/ubuntu/massive-serve-dev/massive_serve/api/api_index.py", line 9, in <module>
-    from massive_serve.src.indicies.base import Indexer
-  File "/home/ubuntu/massive-serve-dev/massive_serve/src/indicies/base.py", line 9, in <module>
-    from .ivf_pq import IVFPQIndexer
-  File "/home/ubuntu/massive-serve-dev/massive_serve/src/indicies/ivf_pq.py", line 10, in <module>
-    from rerank.exact_rerank import exact_rerank_topk
-  File "/home/ubuntu/massive-serve-dev/rerank/exact_rerank.py", line 14, in <module>
-    from normalize_text import normalize as nm
-ModuleNotFoundError: No module named 'normalize_text'
